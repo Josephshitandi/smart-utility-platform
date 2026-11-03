@@ -148,3 +148,15 @@ class MeterReadingSerializer(serializers.ModelSerializer):
             })
 
         return attrs
+
+
+    def create(self, validated_data):
+        reading = MeterReading(**validated_data)
+
+        if reading.detect_abnormal_consumption():
+            reading.status = MeterReading.ReadingStatus.FLAGGED
+        else:
+            reading.status = MeterReading.ReadingStatus.NORMAL
+
+        reading.save()
+        return reading
