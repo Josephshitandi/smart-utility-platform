@@ -21,3 +21,17 @@ class IsMeterStaff(BasePermission):
                 or user.role in ["technician", "support"]
             )
         )
+
+class IsReadingSubmitter(BasePermission):
+    def has_permission(self, request, view):
+        user = request.user
+
+        return (
+            user.is_authenticated
+            and (
+                user.is_superuser
+                or user.role == "technician"
+            )
+        )
+
+    
