@@ -107,3 +107,34 @@ class MeterReading(models.Model):
 
     def __str__(self):
         return f"{self.meter.meter_number} - {self.reading_value}"
+
+
+    def calculate_consumption(self):
+        previous_reading = (
+            MeterReading.objects.filter(
+                meter=self.meter,
+                reading_date__lt=self.reading_date,
+            )
+            .order_by("-reading_date")
+            .first()
+        )
+
+        if previous_reading is None:
+            return None
+
+        return self.reading_value - previous_reading.reading_value
+
+    def detect_abnormal_consumption(self):
+        consumption = self.calculate_consumption()
+
+        if consumption is None:
+            return False
+
+        # Initial demonstration threshold.
+        # We'll replace this with configurable rules later.
+        threshold = 50
+
+        return consumption > threshold
+
+
+
