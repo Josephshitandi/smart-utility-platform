@@ -26,11 +26,9 @@ class MeterSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
-            "meter_number",
-            "source",
-            "status",
-            "recorded_by",
+            "customer_email",
             "created_at",
+            "updated_at",
         ]
        
 
@@ -61,6 +59,7 @@ class MeterReadingSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "meter_number",
+            "source",
             "status",
             "recorded_by",
             "created_at",
