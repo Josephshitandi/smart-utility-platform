@@ -153,3 +153,10 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
+# Demonstration thresholds: average consumption per day.
+# These values must be calibrated using actual utility data.
+
+METER_CONSUMPTION_THRESHOLDS = {
+    "electricity": "50",  # kWh per day
+    "water": "2",         # m³ per day
+}
