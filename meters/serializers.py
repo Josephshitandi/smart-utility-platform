@@ -3,6 +3,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Meter, MeterReading
+from .services import is_abnormal_consumption
 
 
 class MeterSerializer(serializers.ModelSerializer):
@@ -30,7 +31,6 @@ class MeterSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-       
 
 
 class MeterReadingSerializer(serializers.ModelSerializer):
@@ -40,7 +40,9 @@ class MeterReadingSerializer(serializers.ModelSerializer):
     )
 
     status = serializers.CharField(read_only=True)
-    recorded_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    recorded_by = serializers.PrimaryKeyRelatedField(
+        read_only=True
+    )
 
     class Meta:
         model = MeterReading
@@ -73,13 +75,18 @@ class MeterReadingSerializer(serializers.ModelSerializer):
         # Only active meters can receive readings.
         if meter.status != Meter.Status.ACTIVE:
             raise serializers.ValidationError({
-                "meter": "Readings can only be recorded for active meters."
+                "meter": (
+                    "Readings can only be recorded "
+                    "for active meters."
+                )
             })
 
         # Reading date cannot precede meter installation.
         if reading_date.date() < meter.installation_date:
             raise serializers.ValidationError({
-                "reading_date": "Reading date cannot be before installation."
+                "reading_date": (
+                    "Reading date cannot be before installation."
+                )
             })
 
         # Reject future readings.
@@ -101,7 +108,10 @@ class MeterReadingSerializer(serializers.ModelSerializer):
 
         if existing_reading.exists():
             raise serializers.ValidationError({
-                "reading_date": "A reading already exists for this meter at this time."
+                "reading_date": (
+                    "A reading already exists for this meter "
+                    "at this time."
+                )
             })
 
         # Find the immediately preceding reading.
@@ -125,7 +135,7 @@ class MeterReadingSerializer(serializers.ModelSerializer):
                 )
             })
 
-        # Also check the next reading when inserting historical data.
+        # Check the next reading when inserting historical data.
         next_reading = (
             MeterReading.objects.filter(
                 meter=meter,
@@ -148,11 +158,10 @@ class MeterReadingSerializer(serializers.ModelSerializer):
 
         return attrs
 
-
     def create(self, validated_data):
         reading = MeterReading(**validated_data)
 
-        if reading.detect_abnormal_consumption():
+        if is_abnormal_consumption(reading):
             reading.status = MeterReading.ReadingStatus.FLAGGED
         else:
             reading.status = MeterReading.ReadingStatus.NORMAL
