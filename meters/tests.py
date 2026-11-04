@@ -255,4 +255,60 @@ class MeterReadingAPITests(APITestCase):
             status.HTTP_400_BAD_REQUEST,
         )
 
+    def test_reading_cannot_be_lower_than_previous_reading(self):
+        previous_date = timezone.now() - timedelta(days=2)
+
+        MeterReading.objects.create(
+            meter=self.meter,
+            reading_value=Decimal("150.000"),
+            reading_date=previous_date,
+            recorded_by=self.technician,
+        )
+
+        self.client.force_authenticate(user=self.technician)
+
+        response = self.client.post(
+            self.url,
+            {
+                "meter": self.meter.id,
+                "reading_value": "120.000",
+                "reading_date": timezone.now().isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_historical_reading_cannot_exceed_next_reading(self):
+        future_date = timezone.now() - timedelta(days=1)
+
+        MeterReading.objects.create(
+            meter=self.meter,
+            reading_value=Decimal("150.000"),
+            reading_date=future_date,
+            recorded_by=self.technician,
+        )
+
+        self.client.force_authenticate(user=self.technician)
+
+        response = self.client.post(
+            self.url,
+            {
+                "meter": self.meter.id,
+                "reading_value": "180.000",
+                "reading_date": (
+                    timezone.now() - timedelta(days=2)
+                ).isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
 
