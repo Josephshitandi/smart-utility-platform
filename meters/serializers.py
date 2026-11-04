@@ -1,10 +1,10 @@
 
 from django.utils import timezone
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
-from django.db import IntegrityError, transaction
 
 from .models import Meter, MeterReading
-from .services import is_abnormal_consumption
+from .services import create_meter_reading
 
 
 class MeterSerializer(serializers.ModelSerializer):
@@ -41,6 +41,7 @@ class MeterReadingSerializer(serializers.ModelSerializer):
     )
 
     status = serializers.CharField(read_only=True)
+
     recorded_by = serializers.PrimaryKeyRelatedField(
         read_only=True
     )
@@ -73,7 +74,6 @@ class MeterReadingSerializer(serializers.ModelSerializer):
         reading_value = attrs["reading_value"]
         reading_date = attrs["reading_date"]
 
-        # Only active meters can receive readings.
         if meter.status != Meter.Status.ACTIVE:
             raise serializers.ValidationError({
                 "meter": (
@@ -82,7 +82,6 @@ class MeterReadingSerializer(serializers.ModelSerializer):
                 )
             })
 
-        # Reading date cannot precede meter installation.
         if reading_date.date() < meter.installation_date:
             raise serializers.ValidationError({
                 "reading_date": (
@@ -90,22 +89,15 @@ class MeterReadingSerializer(serializers.ModelSerializer):
                 )
             })
 
-        # Reject future readings.
         if reading_date > timezone.now():
             raise serializers.ValidationError({
                 "reading_date": "Future readings are not allowed."
             })
 
-        # Check for duplicate timestamps.
         existing_reading = MeterReading.objects.filter(
             meter=meter,
             reading_date=reading_date,
         )
-
-        if self.instance:
-            existing_reading = existing_reading.exclude(
-                pk=self.instance.pk
-            )
 
         if existing_reading.exists():
             raise serializers.ValidationError({
@@ -115,7 +107,6 @@ class MeterReadingSerializer(serializers.ModelSerializer):
                 )
             })
 
-        # Find the immediately preceding reading.
         previous_reading = (
             MeterReading.objects.filter(
                 meter=meter,
@@ -136,7 +127,6 @@ class MeterReadingSerializer(serializers.ModelSerializer):
                 )
             })
 
-        # Check the next reading when inserting historical data.
         next_reading = (
             MeterReading.objects.filter(
                 meter=meter,
@@ -161,22 +151,10 @@ class MeterReadingSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         try:
-            with transaction.atomic():
-                reading = MeterReading(**validated_data)
+            return create_meter_reading(validated_data)
 
-                if is_abnormal_consumption(reading):
-                    reading.status = MeterReading.ReadingStatus.FLAGGED
-                else:
-                    reading.status = MeterReading.ReadingStatus.NORMAL
+        except DjangoValidationError as exc:
+            if hasattr(exc, "message_dict"):
+                raise serializers.ValidationError(exc.message_dict)
 
-                reading.save()
-
-            return reading
-
-        except IntegrityError:
-            raise serializers.ValidationError({
-                "reading_date": (
-                    "A reading already exists for this meter "
-                    "at this timestamp."
-                )
-            })
+            raise serializers.ValidationError(exc.messages)
