@@ -19,7 +19,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
 
+# SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 
+# if not SECRET_KEY:
+#     raise RuntimeError(
+#         "DJANGO_SECRET_KEY is missing from the environment."
+#     )
+
+SECRET_KEY = 'django-insecure-oy#73ppm2sgf(^p_^@v_cq970lruueri+=1@70x^x0si$=25_='
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
