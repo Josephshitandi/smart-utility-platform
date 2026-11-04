@@ -311,4 +311,59 @@ class MeterReadingAPITests(APITestCase):
             status.HTTP_400_BAD_REQUEST,
         )
 
+    @override_settings(
+    METER_CONSUMPTION_THRESHOLDS={
+        "electricity": "50",
+        "water": "2",
+    }
+    )
 
+    def test_historical_reading_recalculates_next_reading_status(self):
+        first_date = timezone.now() - timedelta(days=4)
+        second_date = timezone.now() - timedelta(days=2)
+
+        # Existing first reading.
+        MeterReading.objects.create(
+            meter=self.meter,
+            reading_value=Decimal("100.000"),
+            reading_date=first_date,
+            recorded_by=self.technician,
+        )
+
+        # Existing second reading.
+        next_reading = MeterReading.objects.create(
+            meter=self.meter,
+            reading_value=Decimal("160.000"),
+            reading_date=second_date,
+            recorded_by=self.technician,
+            status=MeterReading.ReadingStatus.FLAGGED,
+        )
+
+        self.client.force_authenticate(user=self.technician)
+
+        # Insert a historical reading between the two.
+        response = self.client.post(
+            self.url,
+            {
+                "meter": self.meter.id,
+                "reading_value": "150.000",
+                "reading_date": (
+                    timezone.now() - timedelta(days=3)
+                ).isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        next_reading.refresh_from_db()
+
+        self.assertEqual(
+            next_reading.status,
+            MeterReading.ReadingStatus.NORMAL,
+        )
+
+    
