@@ -1,6 +1,7 @@
 
 from django.utils import timezone
 from rest_framework import serializers
+from django.db import IntegrityError, transaction
 
 from .models import Meter, MeterReading
 from .services import is_abnormal_consumption
@@ -159,12 +160,23 @@ class MeterReadingSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        reading = MeterReading(**validated_data)
+        try:
+            with transaction.atomic():
+                reading = MeterReading(**validated_data)
 
-        if is_abnormal_consumption(reading):
-            reading.status = MeterReading.ReadingStatus.FLAGGED
-        else:
-            reading.status = MeterReading.ReadingStatus.NORMAL
+                if is_abnormal_consumption(reading):
+                    reading.status = MeterReading.ReadingStatus.FLAGGED
+                else:
+                    reading.status = MeterReading.ReadingStatus.NORMAL
 
-        reading.save()
-        return reading
+                reading.save()
+
+            return reading
+
+        except IntegrityError:
+            raise serializers.ValidationError({
+                "reading_date": (
+                    "A reading already exists for this meter "
+                    "at this timestamp."
+                )
+            })
