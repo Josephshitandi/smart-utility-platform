@@ -9,11 +9,15 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # meters
     path("api/v1/meters/", include("meters.urls")),
-    # account
-    path("api/v1/auth/", include("accounts.urls")),
 
     # Billing
     path("api/v1/billing/", include("billing.urls")),
+
+    # payment
+    path("api/v1/payments/", include("payments.urls")),
+    
+    # account
+    path("api/v1/auth/", include("accounts.urls")),
 
     path(
         "api/v1/auth/login/",
