@@ -1,6 +1,8 @@
+
 from datetime import timedelta
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -24,8 +26,6 @@ class BillingServiceTests(TestCase):
         self.assertEqual(result["amount"], Decimal("100.00"))
 
     def test_negative_consumption_is_rejected(self):
-        from django.core.exceptions import ValidationError
-
         with self.assertRaises(ValidationError):
             calculate_bill_amount(
                 units_consumed=Decimal("-2"),
@@ -162,7 +162,6 @@ class BillingAPITests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
-    
     def test_duplicate_billing_period_is_rejected(self):
         self.client.force_authenticate(user=self.admin)
 
@@ -172,9 +171,7 @@ class BillingAPITests(TestCase):
                 "meter_id": self.meter.pk,
                 "previous_reading_id": self.previous_reading.pk,
                 "current_reading_id": self.current_reading.pk,
-                "due_date": str(
-                    timezone.localdate() + timedelta(days=15)
-                ),
+                "due_date": str(timezone.localdate() + timedelta(days=15)),
             },
         )
 
@@ -193,9 +190,7 @@ class BillingAPITests(TestCase):
                 "meter_id": self.meter.pk,
                 "previous_reading_id": self.previous_reading.pk,
                 "current_reading_id": self.current_reading.pk,
-                "due_date": str(
-                    timezone.localdate() + timedelta(days=15)
-                ),
+                "due_date": str(timezone.localdate() + timedelta(days=15)),
             },
         )
 
@@ -214,9 +209,7 @@ class BillingAPITests(TestCase):
                 "meter_id": self.meter.pk,
                 "previous_reading_id": self.previous_reading.pk,
                 "current_reading_id": self.current_reading.pk,
-                "due_date": str(
-                    timezone.localdate() + timedelta(days=15)
-                ),
+                "due_date": str(timezone.localdate() + timedelta(days=15)),
             },
         )
 
@@ -246,13 +239,77 @@ class BillingAPITests(TestCase):
                 "meter_id": self.meter.pk,
                 "previous_reading_id": self.previous_reading.pk,
                 "current_reading_id": self.current_reading.pk,
-                "due_date": str(
-                    timezone.localdate() + timedelta(days=15)
-                ),
+                "due_date": str(timezone.localdate() + timedelta(days=15)),
             },
         )
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Bill.objects.count(), 1)
 
-    
+    def test_customer_cannot_create_tariff(self):
+        self.client.force_authenticate(user=self.customer)
+
+        response = self.client.post(
+            "/api/v1/billing/tariffs/",
+            {
+                "name": "Unauthorized Tariff",
+                "meter_type": "electricity",
+                "rate_per_unit": "20.0000",
+                "fixed_charge": "30.00",
+                "effective_from": str(timezone.localdate()),
+                "is_active": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_overlapping_active_tariff_is_rejected(self):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            "/api/v1/billing/tariffs/",
+            {
+                "name": "Overlapping Electricity Tariff",
+                "meter_type": "electricity",
+                "rate_per_unit": "30.0000",
+                "fixed_charge": "40.00",
+                "effective_from": str(timezone.localdate()),
+                "is_active": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Tariff.objects.count(), 1)
+
+    def test_tariff_with_invalid_effective_dates_is_rejected(self):
+        self.client.force_authenticate(user=self.admin)
+
+        today = timezone.localdate()
+
+        response = self.client.post(
+            "/api/v1/billing/tariffs/",
+            {
+                "name": "Invalid Date Tariff",
+                "meter_type": "water",
+                "rate_per_unit": "10.0000",
+                "fixed_charge": "20.00",
+                "effective_from": str(today),
+                "effective_to": str(today - timedelta(days=1)),
+                "is_active": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Tariff.objects.count(), 1)
+
+    def test_customer_cannot_modify_tariff(self):
+        self.client.force_authenticate(user=self.customer)
+
+        response = self.client.patch(
+            f"/api/v1/billing/tariffs/{self.tariff.pk}/",
+            {"rate_per_unit": "30.0000"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.tariff.refresh_from_db()
+        self.assertEqual(self.tariff.rate_per_unit, Decimal("25.0000"))
