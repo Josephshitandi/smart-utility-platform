@@ -8,11 +8,11 @@ from .views import (
 )
 
 urlpatterns = [
-    # Tariffs
+    # Tariff management
     path("tariffs/", TariffListCreateView.as_view(), name="tariff-list-create"),
     path("tariffs/<int:pk>/", TariffDetailView.as_view(), name="tariff-detail"),
 
-    # Bills
-    path("", BillListCreateView.as_view(), name="bill-list-create"),
-    path("<int:pk>/", BillDetailView.as_view(), name="bill-detail"),
+    # Bill management
+    path("bills/", BillListCreateView.as_view(), name="bill-list-create"),
+    path("bills/<int:pk>/", BillDetailView.as_view(), name="bill-detail"),
 ]
