@@ -1,8 +1,9 @@
-
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from accounts.permissions import IsAdministrator
+
 from .models import Payment, LedgerEntry
 from .serializers import (
     PaymentInitiationSerializer,
@@ -13,6 +14,12 @@ from .serializers import (
 
 
 class PaymentListCreateView(generics.ListCreateAPIView):
+    """
+    Customers can initiate payments and view their own payment history.
+    Support agents and administrators can view all payments.
+    """
+
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
@@ -36,10 +43,11 @@ class PaymentListCreateView(generics.ListCreateAPIView):
 
         return PaymentSerializer
 
-    permission_classes = [IsAuthenticated]
-
 
 class PaymentDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve a payment while enforcing customer data isolation.
+    """
 
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
@@ -62,6 +70,13 @@ class PaymentDetailView(generics.RetrieveAPIView):
 
 
 class PaymentCallbackView(generics.GenericAPIView):
+    """
+    Simulated payment-provider callback.
+
+    Restricted to administrators for demonstration purposes.
+    Real provider integration must use verified provider signatures
+    or another authenticated provider-to-server mechanism.
+    """
 
     serializer_class = PaymentCallbackSerializer
     permission_classes = [IsAdministrator]
@@ -72,18 +87,22 @@ class PaymentCallbackView(generics.GenericAPIView):
 
         payment = serializer.save()
 
-        return_response = PaymentSerializer(payment)
-
-        from rest_framework.response import Response
-        from rest_framework import status
-
         return Response(
-            return_response.data,
+            PaymentSerializer(payment).data,
             status=status.HTTP_200_OK,
         )
 
 
 class LedgerEntryListView(generics.ListAPIView):
+    """
+    Read-only financial ledger.
+
+    Customers can view their own ledger entries.
+    Support agents and administrators can view all entries.
+
+    No API endpoint is provided for creating, modifying,
+    or deleting ledger entries.
+    """
 
     serializer_class = LedgerEntrySerializer
     permission_classes = [IsAuthenticated]

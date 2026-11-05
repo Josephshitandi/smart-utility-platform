@@ -5,6 +5,7 @@ from rest_framework import serializers
 from billing.models import Bill
 from .models import Payment, LedgerEntry
 from .services import initiate_payment, process_payment_callback
+from decimal import Decimal
 
 
 class PaymentInitiationSerializer(serializers.Serializer):
@@ -17,7 +18,7 @@ class PaymentInitiationSerializer(serializers.Serializer):
     amount = serializers.DecimalField(
         max_digits=14,
         decimal_places=2,
-        min_value=0.01,
+        min_value=Decimal("0.01"),
     )
 
     payment_method = serializers.ChoiceField(
