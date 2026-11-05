@@ -6,7 +6,6 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 
 from meters.models import Meter, MeterReading
-
 from .models import Tariff, Bill
 
 
@@ -15,9 +14,7 @@ MONEY_PLACES = Decimal("0.01")
 
 def get_applicable_tariff(meter_type, period_start, period_end):
     """
-    Find the active tariff that covers the entire billing period.
-
-    A billing period must not cross a tariff change date.
+    Find exactly one active tariff covering the entire billing period.
     """
 
     tariffs = Tariff.objects.filter(
@@ -39,7 +36,7 @@ def get_applicable_tariff(meter_type, period_start, period_end):
     if len(matching_tariffs) > 1:
         raise ValidationError(
             "Multiple tariffs cover this billing period. "
-            "Resolve the overlapping tariff dates first."
+            "Resolve overlapping tariff dates first."
         )
 
     return matching_tariffs[0]
@@ -48,9 +45,6 @@ def get_applicable_tariff(meter_type, period_start, period_end):
 def calculate_bill_amount(units_consumed, rate_per_unit, fixed_charge):
     """
     Calculate consumption charges and the final bill amount.
-
-    Subtotal = units consumed * rate per unit
-    Amount = subtotal + fixed charge
     """
 
     units_consumed = Decimal(str(units_consumed))
@@ -87,6 +81,52 @@ def calculate_bill_amount(units_consumed, rate_per_unit, fixed_charge):
     }
 
 
+def validate_reading_pair(meter, previous_reading, current_reading):
+    """
+    Validate that readings belong to the meter, are chronological,
+    are not flagged, and are consecutive.
+    """
+
+    if (
+        previous_reading.meter_id != meter.pk
+        or current_reading.meter_id != meter.pk
+    ):
+        raise ValidationError(
+            "Both readings must belong to the specified meter."
+        )
+
+    if current_reading.reading_date <= previous_reading.reading_date:
+        raise ValidationError(
+            "The current reading must be later than the previous reading."
+        )
+
+    if current_reading.reading_value < previous_reading.reading_value:
+        raise ValidationError(
+            "Current reading cannot be lower than the previous reading."
+        )
+
+    if (
+        previous_reading.status == MeterReading.ReadingStatus.FLAGGED
+        or current_reading.status == MeterReading.ReadingStatus.FLAGGED
+    ):
+        raise ValidationError(
+            "Flagged readings must be reviewed before generating a bill."
+        )
+
+    # Do not allow intermediate readings to be skipped.
+    intermediate_reading_exists = MeterReading.objects.filter(
+        meter=meter,
+        reading_date__gt=previous_reading.reading_date,
+        reading_date__lt=current_reading.reading_date,
+    ).exists()
+
+    if intermediate_reading_exists:
+        raise ValidationError(
+            "These readings are not consecutive. "
+            "An intermediate meter reading exists."
+        )
+
+
 def create_bill(
     *,
     meter_id,
@@ -98,17 +138,21 @@ def create_bill(
     """
     Generate a bill from two consecutive meter readings.
 
-    The server determines consumption, billing dates and tariff.
-    Clients cannot supply their own calculated financial amounts.
+    All financial values are calculated on the server.
     """
 
     try:
         with transaction.atomic():
 
-            # Lock the meter to serialize bill creation for this meter.
+            # Lock the meter to serialize billing operations.
             meter = Meter.objects.select_for_update().get(
                 pk=meter_id
             )
+
+            if meter.status != Meter.Status.ACTIVE:
+                raise ValidationError(
+                    "Bills cannot be generated for inactive or faulty meters."
+                )
 
             previous_reading = (
                 MeterReading.objects.select_for_update().get(
@@ -122,59 +166,19 @@ def create_bill(
                 )
             )
 
-            # Ensure both readings belong to the requested meter.
-            if (
-                previous_reading.meter_id != meter.pk
-                or current_reading.meter_id != meter.pk
-            ):
-                raise ValidationError(
-                    "Both readings must belong to the specified meter."
-                )
-
-            # Ensure the readings are in chronological order.
-            if (
-                current_reading.reading_date
-                <= previous_reading.reading_date
-            ):
-                raise ValidationError(
-                    "The current reading must be later "
-                    "than the previous reading."
-                )
-
-            # Consumption cannot decrease.
-            if (
-                current_reading.reading_value
-                < previous_reading.reading_value
-            ):
-                raise ValidationError(
-                    "Current reading cannot be lower "
-                    "than the previous reading."
-                )
-
-            # Flagged readings must be reviewed before billing.
-            if (
-                previous_reading.status
-                == MeterReading.ReadingStatus.FLAGGED
-                or current_reading.status
-                == MeterReading.ReadingStatus.FLAGGED
-            ):
-                raise ValidationError(
-                    "Flagged readings must be reviewed "
-                    "before generating a bill."
-                )
-
-            billing_period_start = (
-                previous_reading.reading_date.date()
+            # Validate reading ownership, sequence and status.
+            validate_reading_pair(
+                meter,
+                previous_reading,
+                current_reading,
             )
 
-            billing_period_end = (
-                current_reading.reading_date.date()
-            )
+            billing_period_start = previous_reading.reading_date.date()
+            billing_period_end = current_reading.reading_date.date()
 
             if due_date < billing_period_end:
                 raise ValidationError(
-                    "Bill due date cannot be before "
-                    "the billing period ends."
+                    "Bill due date cannot be before the billing period ends."
                 )
 
             # Find the applicable tariff.
@@ -196,7 +200,7 @@ def create_bill(
                 tariff.fixed_charge,
             )
 
-            # Create the bill using server-calculated values.
+            # Create the bill with immutable tariff price snapshots.
             bill = Bill.objects.create(
                 meter=meter,
                 tariff=tariff,
