@@ -161,3 +161,98 @@ class BillingAPITests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+    
+    def test_duplicate_billing_period_is_rejected(self):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            "/api/v1/billing/bills/",
+            {
+                "meter_id": self.meter.pk,
+                "previous_reading_id": self.previous_reading.pk,
+                "current_reading_id": self.current_reading.pk,
+                "due_date": str(
+                    timezone.localdate() + timedelta(days=15)
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Bill.objects.count(), 1)
+
+    def test_bill_rejected_when_meter_is_inactive(self):
+        self.meter.status = Meter.Status.INACTIVE
+        self.meter.save()
+
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            "/api/v1/billing/bills/",
+            {
+                "meter_id": self.meter.pk,
+                "previous_reading_id": self.previous_reading.pk,
+                "current_reading_id": self.current_reading.pk,
+                "due_date": str(
+                    timezone.localdate() + timedelta(days=15)
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Bill.objects.count(), 1)
+
+    def test_bill_rejected_when_reading_is_flagged(self):
+        self.current_reading.status = MeterReading.ReadingStatus.FLAGGED
+        self.current_reading.save()
+
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            "/api/v1/billing/bills/",
+            {
+                "meter_id": self.meter.pk,
+                "previous_reading_id": self.previous_reading.pk,
+                "current_reading_id": self.current_reading.pk,
+                "due_date": str(
+                    timezone.localdate() + timedelta(days=15)
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Bill.objects.count(), 1)
+
+    def test_bill_rejected_when_intermediate_reading_exists(self):
+        intermediate_date = (
+            self.previous_reading.reading_date
+            + timedelta(minutes=90)
+        )
+
+        MeterReading.objects.create(
+            meter=self.meter,
+            reading_value=Decimal("1001"),
+            reading_date=intermediate_date,
+            source="manual",
+            status=MeterReading.ReadingStatus.NORMAL,
+            recorded_by=self.admin,
+        )
+
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            "/api/v1/billing/bills/",
+            {
+                "meter_id": self.meter.pk,
+                "previous_reading_id": self.previous_reading.pk,
+                "current_reading_id": self.current_reading.pk,
+                "due_date": str(
+                    timezone.localdate() + timedelta(days=15)
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Bill.objects.count(), 1)
+
+    
