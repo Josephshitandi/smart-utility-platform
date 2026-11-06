@@ -376,11 +376,14 @@ class PaymentServiceTests(TestCase):
         result = reconcile_bill(self.bill)
 
         self.assertFalse(result["is_reconciled"])
-        self.assertGreater(
+        self.assertEqual(
             result["outstanding_amount"],
             Decimal("0.00"),
         )
-        self.assertTrue(result["issues"])
+        self.assertIn(
+            "Bill has been fully paid but is not marked paid.",
+            result["issues"],
+        )
 
     def test_reconcile_payments_checks_multiple_bills(self):
         # Complete payment for the first bill.
