@@ -11,6 +11,7 @@ from .serializers import (
     PaymentCallbackSerializer,
     LedgerEntrySerializer,
 )
+from .services import reconcile_payments
 
 
 class PaymentListCreateView(generics.ListCreateAPIView):
@@ -123,3 +124,24 @@ class LedgerEntryListView(generics.ListAPIView):
             return queryset.filter(customer=user)
 
         return queryset.none()
+
+
+class PaymentReconciliationView(generics.GenericAPIView):
+    """
+    Administrator-only financial reconciliation report.
+
+    Compares successful payments against ledger entries
+    and identifies financial inconsistencies.
+
+    This endpoint is read-only.
+    """
+
+    permission_classes = [IsAdministrator]
+
+    def get(self, request, *args, **kwargs):
+        report = reconcile_payments()
+
+        return Response(
+            report,
+            status=status.HTTP_200_OK,
+        )
