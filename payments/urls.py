@@ -1,4 +1,3 @@
-
 from django.urls import path
 
 from .views import (
@@ -6,6 +5,7 @@ from .views import (
     PaymentDetailView,
     PaymentCallbackView,
     LedgerEntryListView,
+    PaymentReconciliationView,
 )
 
 urlpatterns = [
@@ -28,5 +28,10 @@ urlpatterns = [
         "ledger/",
         LedgerEntryListView.as_view(),
         name="ledger-list",
+    ),
+    path(
+        "reconciliation/",
+        PaymentReconciliationView.as_view(),
+        name="payment-reconciliation",
     ),
 ]
