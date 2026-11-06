@@ -232,6 +232,9 @@ def reconcile_bill(bill):
     This service is read-only. It never modifies financial records.
     """
 
+    # Reload the bill to avoid using stale status or amount data.
+    bill = Bill.objects.get(pk=bill.pk)
+
     successful_payments = Payment.objects.filter(
         bill=bill,
         status=Payment.Status.SUCCESSFUL,
@@ -244,7 +247,7 @@ def reconcile_bill(bill):
     ledger_entries = LedgerEntry.objects.filter(
         bill=bill,
         entry_type=LedgerEntry.EntryType.PAYMENT_CREDIT,
-    )
+    ).select_related("payment")
 
     ledger_total = ledger_entries.aggregate(
         total=models.Sum("amount")
@@ -253,21 +256,60 @@ def reconcile_bill(bill):
     successful_payment_count = successful_payments.count()
     ledger_entry_count = ledger_entries.count()
 
-    missing_ledger_entries = successful_payment_count - ledger_entry_count
+    # Match ledger credits to individual successful payments.
+    ledger_by_payment = {}
 
-    missing_ledger_payments = successful_payments.exclude(
-        ledger_entries__entry_type=LedgerEntry.EntryType.PAYMENT_CREDIT
+    for entry in ledger_entries:
+        payment_id = entry.payment_id
+
+        if payment_id not in ledger_by_payment:
+            ledger_by_payment[payment_id] = {
+                "count": 0,
+                "total": ZERO,
+            }
+
+        ledger_by_payment[payment_id]["count"] += 1
+        ledger_by_payment[payment_id]["total"] += entry.amount
+
+    successful_payment_ids = set(
+        successful_payments.values_list("id", flat=True)
     )
 
-    unmatched_ledger_entries = ledger_entries.exclude(
-        payment__status=Payment.Status.SUCCESSFUL
+    ledger_payment_ids = set(ledger_by_payment.keys())
+
+    missing_ledger_payments = sorted(
+        successful_payment_ids - ledger_payment_ids
     )
 
-    duplicate_ledger_payments = (
-        ledger_entries.values("payment_id")
-        .annotate(entry_count=models.Count("id"))
-        .filter(entry_count__gt=1)
+    # Find ledger entries that do not match successful payments.
+    unmatched_ledger_entries = []
+
+    for entry in ledger_entries:
+        if (
+            entry.payment.status != Payment.Status.SUCCESSFUL
+            or entry.payment.bill_id != bill.pk
+            or entry.payment.customer_id != entry.customer_id
+        ):
+            unmatched_ledger_entries.append(entry.pk)
+
+    # Detect duplicate ledger credits for a payment.
+    duplicate_ledger_payment_ids = sorted(
+        payment_id
+        for payment_id, data in ledger_by_payment.items()
+        if data["count"] > 1
     )
+
+    # Detect amounts that do not match individual payments.
+    ledger_payment_mismatch_ids = []
+
+    for payment in successful_payments:
+        ledger_data = ledger_by_payment.get(payment.pk)
+
+        if (
+            ledger_data is not None
+            and ledger_data["total"] != payment.amount
+        ):
+            ledger_payment_mismatch_ids.append(payment.pk)
 
     amount_difference = payment_total - ledger_total
     outstanding_amount = bill.amount - payment_total
@@ -275,25 +317,50 @@ def reconcile_bill(bill):
     issues = []
 
     if amount_difference != ZERO:
-        issues.append("Payment total does not match ledger total.")
+        issues.append(
+            "Payment total does not match ledger total."
+        )
 
-    if missing_ledger_entries > 0:
-        issues.append("One or more successful payments have no ledger entry.")
+    if missing_ledger_payments:
+        issues.append(
+            "One or more successful payments have no ledger entry."
+        )
 
-    if unmatched_ledger_entries.exists():
-        issues.append("Ledger contains entries without successful payments.")
+    if unmatched_ledger_entries:
+        issues.append(
+            "Ledger contains entries without matching successful payments."
+        )
 
-    if duplicate_ledger_payments.exists():
-        issues.append("Duplicate ledger entries detected.")
+    if duplicate_ledger_payment_ids:
+        issues.append(
+            "Duplicate ledger entries detected."
+        )
+
+    if ledger_payment_mismatch_ids:
+        issues.append(
+            "One or more ledger amounts do not match their payments."
+        )
 
     if payment_total > bill.amount:
-        issues.append("Successful payments exceed the bill amount.")
+        issues.append(
+            "Successful payments exceed the bill amount."
+        )
 
-    if bill.status == Bill.Status.PAID and outstanding_amount > ZERO:
-        issues.append("Bill is marked paid but has an outstanding balance.")
+    if (
+        bill.status == Bill.Status.PAID
+        and outstanding_amount > ZERO
+    ):
+        issues.append(
+            "Bill is marked paid but has an outstanding balance."
+        )
 
-    if bill.status != Bill.Status.PAID and outstanding_amount <= ZERO:
-        issues.append("Bill has been fully paid but is not marked paid.")
+    if (
+        bill.status != Bill.Status.PAID
+        and outstanding_amount <= ZERO
+    ):
+        issues.append(
+            "Bill has been fully paid but is not marked paid."
+        )
 
     if outstanding_amount < ZERO:
         outstanding_amount = ZERO
@@ -307,16 +374,10 @@ def reconcile_bill(bill):
         "ledger_total": ledger_total,
         "amount_difference": amount_difference,
         "outstanding_amount": outstanding_amount,
-        "missing_ledger_payments": list(
-            missing_ledger_payments.values_list("id", flat=True)
-        ),
-        "unmatched_ledger_entry_ids": list(
-            unmatched_ledger_entries.values_list("id", flat=True)
-        ),
-        "duplicate_ledger_payment_ids": [
-            item["payment_id"]
-            for item in duplicate_ledger_payments
-        ],
+        "missing_ledger_payments": missing_ledger_payments,
+        "unmatched_ledger_entry_ids": unmatched_ledger_entries,
+        "duplicate_ledger_payment_ids": duplicate_ledger_payment_ids,
+        "ledger_payment_mismatch_ids": ledger_payment_mismatch_ids,
         "is_reconciled": not issues,
         "issues": issues,
     }
@@ -339,7 +400,9 @@ def reconcile_payments():
 
     results = []
 
-    for bill in Bill.objects.filter(pk__in=bill_ids).order_by("id"):
+    for bill in Bill.objects.filter(
+        pk__in=bill_ids
+    ).order_by("id"):
         results.append(reconcile_bill(bill))
 
     return {
