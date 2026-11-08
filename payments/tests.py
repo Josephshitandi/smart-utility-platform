@@ -5,6 +5,8 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
+from rest_framework.test import APIClient
+
 from accounts.models import User
 from meters.models import Meter, MeterReading
 from billing.models import Bill, Tariff
@@ -32,6 +34,15 @@ class PaymentServiceTests(TestCase):
             email="paymentadmin@example.com",
             password="TestPassword123!",
         )
+
+        self.support = User.objects.create_user(
+            username="paymentsupport",
+            email="paymentsupport@example.com",
+            password="TestPassword123!",
+            role="support",
+        )
+
+        self.api_client = APIClient()
 
         self.meter = Meter.objects.create(
             meter_number="PAY-TEST-001",
@@ -413,3 +424,96 @@ class PaymentServiceTests(TestCase):
         self.assertEqual(result["total_bills_checked"], 2)
         self.assertEqual(result["reconciled_count"], 2)
         self.assertEqual(result["discrepancy_count"], 0)
+
+        # --------------------------------------------------
+    # Reconciliation API security tests
+    # --------------------------------------------------
+
+    def test_admin_can_access_reconciliation_api(self):
+        self.api_client.force_authenticate(user=self.admin)
+
+        response = self.api_client.get(
+            "/api/v1/payments/reconciliation/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("total_bills_checked", response.data)
+        self.assertIn("reconciled_count", response.data)
+        self.assertIn("discrepancy_count", response.data)
+        self.assertIn("results", response.data)
+
+    def test_customer_cannot_access_reconciliation_api(self):
+        self.api_client.force_authenticate(user=self.customer)
+
+        response = self.api_client.get(
+            "/api/v1/payments/reconciliation/"
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_support_cannot_access_reconciliation_api(self):
+        self.api_client.force_authenticate(user=self.support)
+
+        response = self.api_client.get(
+            "/api/v1/payments/reconciliation/"
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_unauthenticated_user_cannot_access_reconciliation_api(self):
+        response = self.api_client.get(
+            "/api/v1/payments/reconciliation/"
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_reconciliation_api_rejects_post_requests(self):
+        self.api_client.force_authenticate(user=self.admin)
+
+        response = self.api_client.post(
+            "/api/v1/payments/reconciliation/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_reconciliation_api_does_not_modify_financial_records(self):
+        payment = self.complete_payment(
+            reference="API-RECON-REF-001"
+        )
+
+        payment_count_before = Payment.objects.count()
+        ledger_count_before = LedgerEntry.objects.count()
+
+        self.bill.refresh_from_db()
+        bill_status_before = self.bill.status
+
+        payment.refresh_from_db()
+        payment_status_before = payment.status
+
+        self.api_client.force_authenticate(user=self.admin)
+
+        response = self.api_client.get(
+            "/api/v1/payments/reconciliation/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(
+            Payment.objects.count(),
+            payment_count_before,
+        )
+
+        self.assertEqual(
+            LedgerEntry.objects.count(),
+            ledger_count_before,
+        )
+
+        self.bill.refresh_from_db()
+        payment.refresh_from_db()
+
+        self.assertEqual(self.bill.status, bill_status_before)
+        self.assertEqual(payment.status, payment_status_before)
+
+
