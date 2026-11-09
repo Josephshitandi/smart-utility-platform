@@ -14,6 +14,8 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import timedelta
+from django.urls import reverse_lazy
+from django.utils.translation import gettext_lazy as _
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -178,12 +180,132 @@ METER_CONSUMPTION_THRESHOLDS = {
 }
 
 UNFOLD = {
-    "SITE_TITLE": "Smart Utility Platform",
-    "SITE_HEADER": "Smart Utility Management",
-    "SITE_SUBHEADER": "Administration Portal",
-    "SITE_SYMBOL": "electric_bolt",
-    "SHOW_HISTORY": True,
-    "SHOW_VIEW_ON_SITE": False,
-    "SHOW_UI_WARNINGS": True,
-    "BORDER_RADIUS": "8px",
-}
+        "SITE_TITLE": "Smart Utility Platform",
+        "SITE_HEADER": "Smart Utility Management",
+        "SITE_SUBHEADER": "Administration Portal",
+        "SITE_SYMBOL": "electric_bolt",
+
+        "SHOW_HISTORY": True,
+        "SHOW_VIEW_ON_SITE": False,
+        "SHOW_UI_WARNINGS": True,
+
+        "BORDER_RADIUS": "8px",
+
+        "SIDEBAR": {
+            "show_search": True,
+            "show_all_applications": False,
+
+            "navigation": [
+                {
+                    "title": _("Overview"),
+                    "separator": True,
+                    "collapsible": False,
+                    "items": [
+                        {
+                            "title": _("Dashboard"),
+                            "icon": "dashboard",
+                            "link": reverse_lazy("admin:index"),
+                        },
+                    ],
+                },
+                {
+                    "title": _("User Management"),
+                    "separator": True,
+                    "collapsible": True,
+                    "items": [
+                        {
+                            "title": _("Users"),
+                            "icon": "people",
+                            "link": reverse_lazy(
+                                "admin:accounts_user_changelist"
+                            ),
+                        },
+                    ],
+                },
+                {
+                    "title": _("Meter Management"),
+                    "separator": True,
+                    "collapsible": True,
+                    "items": [
+                        {
+                            "title": _("Meters"),
+                            "icon": "electric_meter",
+                            "link": reverse_lazy(
+                                "admin:meters_meter_changelist"
+                            ),
+                        },
+                        {
+                            "title": _("Meter Readings"),
+                            "icon": "monitoring",
+                            "link": reverse_lazy(
+                                "admin:meters_meterreading_changelist"
+                            ),
+                        },
+                    ],
+                },
+                {
+                    "title": _("Billing"),
+                    "separator": True,
+                    "collapsible": True,
+                    "items": [
+                        {
+                            "title": _("Tariffs"),
+                            "icon": "price_change",
+                            "link": reverse_lazy(
+                                "admin:billing_tariff_changelist"
+                            ),
+                        },
+                        {
+                            "title": _("Bills"),
+                            "icon": "receipt_long",
+                            "link": reverse_lazy(
+                                "admin:billing_bill_changelist"
+                            ),
+                        },
+                    ],
+                },
+                {
+                    "title": _("Payments"),
+                    "separator": True,
+                    "collapsible": True,
+                    "items": [
+                        {
+                            "title": _("Payments"),
+                            "icon": "payments",
+                            "link": reverse_lazy(
+                                "admin:payments_payment_changelist"
+                            ),
+                        },
+                        {
+                            "title": _("Financial Ledger"),
+                            "icon": "account_balance",
+                            "link": reverse_lazy(
+                                "admin:payments_ledgerentry_changelist"
+                            ),
+                        },
+                    ],
+                },
+                {
+                    "title": _("Customer Support"),
+                    "separator": True,
+                    "collapsible": True,
+                    "items": [
+                        {
+                            "title": _("Support Tickets"),
+                            "icon": "support_agent",
+                            "link": reverse_lazy(
+                                "admin:support_supportticket_changelist"
+                            ),
+                        },
+                        {
+                            "title": _("Ticket Messages"),
+                            "icon": "forum",
+                            "link": reverse_lazy(
+                                "admin:support_ticketmessage_changelist"
+                            ),
+                        },
+                    ],
+                },
+            ],
+        },
+    }
