@@ -1,4 +1,3 @@
-
 {% extends "admin/base.html" %}
 {% load i18n %}
 
@@ -12,102 +11,185 @@
 
 {% block content %}
 
-<div style="margin-bottom: 25px;">
-    <h1 style="font-size: 25px; font-weight: 700;">
-        Smart Utility Overview
-    </h1>
-    <p style="color: #888;">
-        Monitor your utility operations from one place.
-    </p>
-</div>
+<div class="space-y-8">
 
-<h2 style="font-size: 18px; margin-bottom: 15px;">
-    User Management
-</h2>
-
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px;">
-
-    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
-        <p>Total Users</p>
-        <h2 style="font-size: 30px; font-weight: bold;">{{ total_users }}</h2>
+    <!-- Dashboard Heading -->
+    <div>
+        <h1 class="text-2xl font-semibold">
+            Smart Utility Management Dashboard
+        </h1>
+        <p class="mt-1 text-sm text-gray-500">
+            Overview of users, meters, billing, payments and customer support.
+        </p>
     </div>
 
-    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
-        <p>Total Customers</p>
-        <h2 style="font-size: 30px; font-weight: bold;">{{ total_customers }}</h2>
-    </div>
+    <!-- User Statistics -->
+    <section>
+        <h2 class="mb-4 text-lg font-semibold">
+            User Management
+        </h2>
 
-</div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
-<h2 style="font-size: 18px; margin-bottom: 15px;">
-    Meter Management
-</h2>
+            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm text-gray-500">Total Users</p>
+                <p class="mt-2 text-3xl font-bold">{{ total_users }}</p>
+            </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px;">
+            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm text-gray-500">Total Customers</p>
+                <p class="mt-2 text-3xl font-bold">{{ total_customers }}</p>
+            </div>
 
-    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
-        <p>Total Meters</p>
-        <h2 style="font-size: 30px; font-weight: bold;">{{ total_meters }}</h2>
-    </div>
+        </div>
+    </section>
 
-    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
-        <p>Active Meters</p>
-        <h2 style="font-size: 30px; font-weight: bold;">{{ active_meters }}</h2>
-    </div>
+    <!-- Meter Statistics -->
+    <section>
+        <h2 class="mb-4 text-lg font-semibold">
+            Meter Management
+        </h2>
 
-</div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
-<h2 style="font-size: 18px; margin-bottom: 15px;">
-    Billing
-</h2>
+            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm text-gray-500">Total Meters</p>
+                <p class="mt-2 text-3xl font-bold">{{ total_meters }}</p>
+            </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px;">
+            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm text-gray-500">Active Meters</p>
+                <p class="mt-2 text-3xl font-bold">{{ active_meters }}</p>
+            </div>
 
-    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
-        <p>Total Bills</p>
-        <h2 style="font-size: 30px; font-weight: bold;">{{ total_bills }}</h2>
-    </div>
+        </div>
+    </section>
 
-    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
-        <p>Outstanding Bills</p>
-        <h2 style="font-size: 30px; font-weight: bold;">{{ outstanding_bills }}</h2>
-    </div>
+    <!-- Billing Statistics -->
+    <section>
+        <h2 class="mb-4 text-lg font-semibold">
+            Billing Management
+        </h2>
 
-    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
-        <p>Outstanding Amount</p>
-        <h2 style="font-size: 26px; font-weight: bold;">KES {{ outstanding_amount|floatformat:2 }}</h2>
-    </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
-</div>
+            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm text-gray-500">Total Bills</p>
+                <p class="mt-2 text-3xl font-bold">{{ total_bills }}</p>
+            </div>
 
-<h2 style="font-size: 18px; margin-bottom: 15px;">
-    Payments
-</h2>
+            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm text-gray-500">Outstanding Bills</p>
+                <p class="mt-2 text-3xl font-bold">{{ outstanding_bills }}</p>
+            </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px;">
+            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm text-gray-500">Outstanding Amount</p>
+                <p class="mt-2 text-3xl font-bold">
+                    KES {{ outstanding_amount|floatformat:2 }}
+                </p>
+            </div>
 
-    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
-        <p>Successful Payments</p>
-        <h2 style="font-size: 30px; font-weight: bold;">{{ successful_payments }}</h2>
-    </div>
+        </div>
+    </section>
 
-    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
-        <p>Total Payments Received</p>
-        <h2 style="font-size: 26px; font-weight: bold;">KES {{ total_payments_received|floatformat:2 }}</h2>
-    </div>
+    <!-- Payment Statistics -->
+    <section>
+        <h2 class="mb-4 text-lg font-semibold">
+            Payment Management
+        </h2>
 
-</div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
-<h2 style="font-size: 18px; margin-bottom: 15px;">
-    Customer Support
-</h2>
+            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm text-gray-500">Successful Payments</p>
+                <p class="mt-2 text-3xl font-bold">
+                    {{ successful_payments }}
+                </p>
+            </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px;">
+            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm text-gray-500">Total Payments Received</p>
+                <p class="mt-2 text-3xl font-bold">
+                    KES {{ total_payments_received|floatformat:2 }}
+                </p>
+            </div>
 
-    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
-        <p>Open Support Tickets</p>
-        <h2 style="font-size: 30px; font-weight: bold;">{{ open_tickets }}</h2>
-    </div>
+        </div>
+    </section>
+
+    <!-- Monthly Revenue Chart -->
+    <section>
+        <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+
+            <div class="mb-6">
+                <h2 class="text-lg font-semibold">
+                    Monthly Revenue Trend
+                </h2>
+
+                <p class="mt-1 text-sm text-gray-500">
+                    Successful payments received over the last 12 months (KES).
+                </p>
+            </div>
+
+            <div class="grid grid-cols-12 items-end gap-2" style="height: 230px;">
+
+                {% for month in monthly_revenue %}
+
+                    <div class="flex h-full min-w-0 flex-col items-center justify-end">
+
+                        <span class="mb-2 text-xs text-gray-500">
+                            {{ month.amount|floatformat:0 }}
+                        </span>
+
+                        <div class="flex w-full items-end justify-center"
+                             style="height: 150px;">
+
+                            <div
+                                class="w-3/4 rounded-t-md"
+                                style="
+                                    height: {{ month.height }}%;
+                                    min-height: 3px;
+                                    background-color: #0d9488;
+                                ">
+                            </div>
+
+                        </div>
+
+                        <span class="mt-2 text-xs text-gray-500">
+                            {{ month.label }}
+                        </span>
+
+                    </div>
+
+                {% empty %}
+
+                    <p class="col-span-12 text-sm text-gray-500">
+                        No monthly revenue data available.
+                    </p>
+
+                {% endfor %}
+
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Customer Support Statistics -->
+    <section>
+        <h2 class="mb-4 text-lg font-semibold">
+            Customer Support
+        </h2>
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm text-gray-500">Open Support Tickets</p>
+                <p class="mt-2 text-3xl font-bold">{{ open_tickets }}</p>
+            </div>
+
+        </div>
+    </section>
 
 </div>
 
