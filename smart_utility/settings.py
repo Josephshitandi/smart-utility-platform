@@ -39,6 +39,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    "unfold",
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -174,4 +175,15 @@ SIMPLE_JWT = {
 METER_CONSUMPTION_THRESHOLDS = {
     "electricity": "50",  # kWh per day
     "water": "2",         # m³ per day
+}
+
+UNFOLD = {
+    "SITE_TITLE": "Smart Utility Platform",
+    "SITE_HEADER": "Smart Utility Management",
+    "SITE_SUBHEADER": "Administration Portal",
+    "SITE_SYMBOL": "electric_bolt",
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": False,
+    "SHOW_UI_WARNINGS": True,
+    "BORDER_RADIUS": "8px",
 }

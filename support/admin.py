@@ -1,10 +1,11 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 
 from .models import SupportTicket, TicketMessage
 
 
 @admin.register(SupportTicket)
-class SupportTicketAdmin(admin.ModelAdmin):
+class SupportTicketAdmin(ModelAdmin):
     list_display = (
         "id",
         "subject",
@@ -40,7 +41,7 @@ class SupportTicketAdmin(admin.ModelAdmin):
 
 
 @admin.register(TicketMessage)
-class TicketMessageAdmin(admin.ModelAdmin):
+class TicketMessageAdmin(ModelAdmin):
     list_display = (
         "id",
         "ticket",

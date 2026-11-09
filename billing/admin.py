@@ -1,12 +1,11 @@
-
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 
 from .models import Bill, Tariff
 
 
 @admin.register(Tariff)
-class TariffAdmin(admin.ModelAdmin):
-
+class TariffAdmin(ModelAdmin):
     list_display = (
         "id",
         "name",
@@ -37,8 +36,7 @@ class TariffAdmin(admin.ModelAdmin):
 
 
 @admin.register(Bill)
-class BillAdmin(admin.ModelAdmin):
-
+class BillAdmin(ModelAdmin):
     list_display = (
         "id",
         "meter",

@@ -1,12 +1,11 @@
-
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 
 from .models import Meter, MeterReading
 
 
 @admin.register(Meter)
-class MeterAdmin(admin.ModelAdmin):
-
+class MeterAdmin(ModelAdmin):
     list_display = (
         "id",
         "meter_number",
@@ -36,8 +35,7 @@ class MeterAdmin(admin.ModelAdmin):
 
 
 @admin.register(MeterReading)
-class MeterReadingAdmin(admin.ModelAdmin):
-
+class MeterReadingAdmin(ModelAdmin):
     list_display = (
         "id",
         "meter",
