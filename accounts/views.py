@@ -1,7 +1,8 @@
-
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
+
+from drf_spectacular.utils import extend_schema, inline_serializer
 
 from .serializers import (
     UserRegistrationSerializer,
@@ -34,6 +35,16 @@ class RoleDashboardView(APIView):
         IsAdministrator | IsTechnician | IsSupportAgent | IsCustomer
     ]
 
+    @extend_schema(
+        responses=inline_serializer(
+            name="RoleDashboardResponse",
+            fields={
+                "message": serializers.CharField(),
+                "username": serializers.CharField(),
+                "role": serializers.CharField(),
+            },
+        )
+    )
     def get(self, request):
         return Response({
             "message": "Access granted",
@@ -45,6 +56,15 @@ class RoleDashboardView(APIView):
 class TechnicianDashboardView(APIView):
     permission_classes = [IsTechnician]
 
+    @extend_schema(
+        responses=inline_serializer(
+            name="TechnicianDashboardResponse",
+            fields={
+                "message": serializers.CharField(),
+                "user": serializers.CharField(),
+            },
+        )
+    )
     def get(self, request):
         return Response({
             "message": "Welcome to the technician dashboard",
@@ -55,6 +75,15 @@ class TechnicianDashboardView(APIView):
 class SupportDashboardView(APIView):
     permission_classes = [IsSupportAgent]
 
+    @extend_schema(
+        responses=inline_serializer(
+            name="SupportDashboardResponse",
+            fields={
+                "message": serializers.CharField(),
+                "user": serializers.CharField(),
+            },
+        )
+    )
     def get(self, request):
         return Response({
             "message": "Welcome to the support dashboard",
@@ -65,6 +94,15 @@ class SupportDashboardView(APIView):
 class AdministratorDashboardView(APIView):
     permission_classes = [IsAdministrator]
 
+    @extend_schema(
+        responses=inline_serializer(
+            name="AdministratorDashboardResponse",
+            fields={
+                "message": serializers.CharField(),
+                "user": serializers.CharField(),
+            },
+        )
+    )
     def get(self, request):
         return Response({
             "message": "Welcome to the administrator dashboard",

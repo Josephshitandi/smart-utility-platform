@@ -1,0 +1,2295 @@
+openapi: 3.0.3
+info:
+  title: Smart Utility Platform API
+  version: 1.0.0
+  description: "\n    API documentation for the Smart Utility Management Platform.\n\n
+    \   The API provides functionality for:\n    - User and account management\n    -
+    Meter management\n    - Meter readings\n    - Billing and tariffs\n    - Payments
+    and financial ledger\n    - Customer support and tickets\n\n    Authentication
+    uses JWT Bearer tokens.\n    "
+paths:
+  /api/v1/auth/administrator/:
+    get:
+      operationId: v1_auth_administrator_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdministratorDashboardResponse'
+          description: ''
+  /api/v1/auth/dashboard/:
+    get:
+      operationId: v1_auth_dashboard_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleDashboardResponse'
+          description: ''
+  /api/v1/auth/login/:
+    post:
+      operationId: v1_auth_login_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenObtainPair'
+          description: ''
+  /api/v1/auth/profile/:
+    get:
+      operationId: v1_auth_profile_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+          description: ''
+  /api/v1/auth/register/:
+    post:
+      operationId: v1_auth_register_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRegistration'
+          description: ''
+  /api/v1/auth/support/:
+    get:
+      operationId: v1_auth_support_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportDashboardResponse'
+          description: ''
+  /api/v1/auth/technician/:
+    get:
+      operationId: v1_auth_technician_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TechnicianDashboardResponse'
+          description: ''
+  /api/v1/auth/token/refresh/:
+    post:
+      operationId: v1_auth_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/billing/bills/:
+    get:
+      operationId: v1_billing_bills_list
+      description: |-
+        List bills according to the user's role.
+        Only administrators can generate bills.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBillList'
+          description: ''
+    post:
+      operationId: v1_billing_bills_create
+      description: |-
+        List bills according to the user's role.
+        Only administrators can generate bills.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BillRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BillRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bill'
+          description: ''
+  /api/v1/billing/bills/{id}/:
+    get:
+      operationId: v1_billing_bills_retrieve
+      description: |-
+        Retrieve a single bill.
+        Customers can only retrieve bills for their own meters.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bill'
+          description: ''
+  /api/v1/billing/tariffs/:
+    get:
+      operationId: v1_billing_tariffs_list
+      description: |-
+        List available tariffs.
+        Only administrators can create tariffs.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTariffList'
+          description: ''
+    post:
+      operationId: v1_billing_tariffs_create
+      description: |-
+        List available tariffs.
+        Only administrators can create tariffs.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TariffRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TariffRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TariffRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tariff'
+          description: ''
+  /api/v1/billing/tariffs/{id}/:
+    get:
+      operationId: v1_billing_tariffs_retrieve
+      description: |-
+        Retrieve, update or delete a tariff.
+        Only administrators can update or delete tariffs.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tariff'
+          description: ''
+    put:
+      operationId: v1_billing_tariffs_update
+      description: |-
+        Retrieve, update or delete a tariff.
+        Only administrators can update or delete tariffs.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TariffRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TariffRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TariffRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tariff'
+          description: ''
+    patch:
+      operationId: v1_billing_tariffs_partial_update
+      description: |-
+        Retrieve, update or delete a tariff.
+        Only administrators can update or delete tariffs.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTariffRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTariffRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTariffRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tariff'
+          description: ''
+    delete:
+      operationId: v1_billing_tariffs_destroy
+      description: |-
+        Retrieve, update or delete a tariff.
+        Only administrators can update or delete tariffs.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/meters/:
+    get:
+      operationId: v1_meters_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMeterList'
+          description: ''
+    post:
+      operationId: v1_meters_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MeterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MeterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meter'
+          description: ''
+  /api/v1/meters/{id}/:
+    get:
+      operationId: v1_meters_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meter'
+          description: ''
+    put:
+      operationId: v1_meters_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MeterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MeterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meter'
+          description: ''
+    patch:
+      operationId: v1_meters_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMeterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMeterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMeterRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meter'
+          description: ''
+    delete:
+      operationId: v1_meters_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/meters/readings/:
+    get:
+      operationId: v1_meters_readings_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMeterReadingList'
+          description: ''
+    post:
+      operationId: v1_meters_readings_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeterReadingRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MeterReadingRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MeterReadingRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterReading'
+          description: ''
+  /api/v1/meters/readings/{id}/:
+    get:
+      operationId: v1_meters_readings_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterReading'
+          description: ''
+  /api/v1/payments/:
+    get:
+      operationId: v1_payments_list
+      description: |-
+        Customers can initiate payments and view their own payment history.
+        Support agents and administrators can view all payments.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPaymentList'
+          description: ''
+    post:
+      operationId: v1_payments_create
+      description: |-
+        Customers can initiate payments and view their own payment history.
+        Support agents and administrators can view all payments.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentInitiationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PaymentInitiationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PaymentInitiationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentInitiation'
+          description: ''
+  /api/v1/payments/{id}/:
+    get:
+      operationId: v1_payments_retrieve
+      description: Retrieve a payment while enforcing customer data isolation.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+  /api/v1/payments/callback/:
+    post:
+      operationId: v1_payments_callback_create
+      description: |-
+        Simulated payment-provider callback.
+
+        Restricted to administrators for demonstration purposes.
+        Real provider integration must use verified provider signatures
+        or another authenticated provider-to-server mechanism.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCallbackRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PaymentCallbackRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PaymentCallbackRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentCallback'
+          description: ''
+  /api/v1/payments/ledger/:
+    get:
+      operationId: v1_payments_ledger_list
+      description: |-
+        Read-only financial ledger.
+
+        Customers can view their own ledger entries.
+        Support agents and administrators can view all entries.
+
+        No API endpoint is provided for creating, modifying,
+        or deleting ledger entries.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedLedgerEntryList'
+          description: ''
+  /api/v1/payments/reconciliation/:
+    get:
+      operationId: v1_payments_reconciliation_retrieve
+      description: Administrator-only read-only report comparing successful payments
+        against financial ledger entries.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentReconciliationReport'
+          description: ''
+  /api/v1/support/tickets/:
+    get:
+      operationId: v1_support_tickets_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSupportTicketList'
+          description: ''
+    post:
+      operationId: v1_support_tickets_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportTicketRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SupportTicketRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SupportTicketRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicket'
+          description: ''
+  /api/v1/support/tickets/{id}/:
+    get:
+      operationId: v1_support_tickets_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicket'
+          description: ''
+    put:
+      operationId: v1_support_tickets_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportTicketRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SupportTicketRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SupportTicketRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicket'
+          description: ''
+    patch:
+      operationId: v1_support_tickets_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSupportTicketRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSupportTicketRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSupportTicketRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicket'
+          description: ''
+  /api/v1/support/tickets/{ticket_id}/messages/:
+    get:
+      operationId: v1_support_tickets_messages_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: path
+        name: ticket_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTicketMessageList'
+          description: ''
+    post:
+      operationId: v1_support_tickets_messages_create
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketMessageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TicketMessageRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TicketMessageRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketMessage'
+          description: ''
+components:
+  schemas:
+    AdministratorDashboardResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        user:
+          type: string
+      required:
+      - message
+      - user
+    Bill:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        meter:
+          type: integer
+          readOnly: true
+        meter_number:
+          type: string
+          readOnly: true
+        customer_email:
+          type: string
+          format: email
+          readOnly: true
+        tariff:
+          type: integer
+          readOnly: true
+        tariff_name:
+          type: string
+          readOnly: true
+        previous_reading:
+          type: integer
+          readOnly: true
+        current_reading:
+          type: integer
+          readOnly: true
+        billing_period_start:
+          type: string
+          format: date
+          readOnly: true
+        billing_period_end:
+          type: string
+          format: date
+          readOnly: true
+        units_consumed:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,11}(?:\.\d{0,3})?$
+          readOnly: true
+        rate_per_unit:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,4})?$
+          readOnly: true
+        fixed_charge:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        subtotal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+        due_date:
+          type: string
+          format: date
+        status:
+          allOf:
+          - $ref: '#/components/schemas/BillStatusEnum'
+          readOnly: true
+        created_by:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - billing_period_end
+      - billing_period_start
+      - created_at
+      - created_by
+      - current_reading
+      - customer_email
+      - due_date
+      - fixed_charge
+      - id
+      - meter
+      - meter_number
+      - previous_reading
+      - rate_per_unit
+      - status
+      - subtotal
+      - tariff
+      - tariff_name
+      - units_consumed
+      - updated_at
+    BillReconciliation:
+      type: object
+      properties:
+        bill_id:
+          type: integer
+        bill_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        successful_payment_count:
+          type: integer
+        ledger_entry_count:
+          type: integer
+        payment_total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        ledger_total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        amount_difference:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        outstanding_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        missing_ledger_payments:
+          type: array
+          items:
+            type: integer
+        unmatched_ledger_entry_ids:
+          type: array
+          items:
+            type: integer
+        duplicate_ledger_payment_ids:
+          type: array
+          items:
+            type: integer
+        ledger_payment_mismatch_ids:
+          type: array
+          items:
+            type: integer
+        is_reconciled:
+          type: boolean
+        issues:
+          type: array
+          items:
+            type: string
+      required:
+      - amount_difference
+      - bill_amount
+      - bill_id
+      - duplicate_ledger_payment_ids
+      - is_reconciled
+      - issues
+      - ledger_entry_count
+      - ledger_payment_mismatch_ids
+      - ledger_total
+      - missing_ledger_payments
+      - outstanding_amount
+      - payment_total
+      - successful_payment_count
+      - unmatched_ledger_entry_ids
+    BillRequest:
+      type: object
+      properties:
+        meter_id:
+          type: integer
+          writeOnly: true
+        previous_reading_id:
+          type: integer
+          writeOnly: true
+        current_reading_id:
+          type: integer
+          writeOnly: true
+        due_date:
+          type: string
+          format: date
+      required:
+      - current_reading_id
+      - due_date
+      - meter_id
+      - previous_reading_id
+    BillStatusEnum:
+      enum:
+      - pending
+      - paid
+      - overdue
+      - cancelled
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `paid` - Paid
+        * `overdue` - Overdue
+        * `cancelled` - Cancelled
+    CategoryEnum:
+      enum:
+      - billing
+      - payment
+      - meter
+      - technical
+      - general
+      type: string
+      description: |-
+        * `billing` - Billing
+        * `payment` - Payment
+        * `meter` - Meter
+        * `technical` - Technical
+        * `general` - General
+    EntryTypeEnum:
+      enum:
+      - payment_credit
+      - refund_debit
+      type: string
+      description: |-
+        * `payment_credit` - Payment Credit
+        * `refund_debit` - Refund Debit
+    LedgerEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        payment_id:
+          type: integer
+          readOnly: true
+        bill_id:
+          type: integer
+          readOnly: true
+        customer:
+          type: integer
+          readOnly: true
+        customer_email:
+          type: string
+          format: email
+          readOnly: true
+        entry_type:
+          allOf:
+          - $ref: '#/components/schemas/EntryTypeEnum'
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+        description:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - bill_id
+      - created_at
+      - customer
+      - customer_email
+      - description
+      - entry_type
+      - id
+      - payment_id
+    Meter:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        meter_number:
+          type: string
+          maxLength: 50
+        meter_type:
+          $ref: '#/components/schemas/MeterTypeEnum'
+        customer:
+          type: integer
+        customer_email:
+          type: string
+          format: email
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/MeterStatusEnum'
+        installation_date:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - customer
+      - customer_email
+      - id
+      - installation_date
+      - meter_number
+      - meter_type
+      - updated_at
+    MeterReading:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        meter:
+          type: integer
+        meter_number:
+          type: string
+          readOnly: true
+        reading_value:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,11}(?:\.\d{0,3})?$
+        reading_date:
+          type: string
+          format: date-time
+        source:
+          allOf:
+          - $ref: '#/components/schemas/SourceEnum'
+          readOnly: true
+        status:
+          type: string
+          readOnly: true
+        recorded_by:
+          type: integer
+          readOnly: true
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - meter
+      - meter_number
+      - reading_date
+      - reading_value
+      - recorded_by
+      - source
+      - status
+    MeterReadingRequest:
+      type: object
+      properties:
+        meter:
+          type: integer
+        reading_value:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,11}(?:\.\d{0,3})?$
+        reading_date:
+          type: string
+          format: date-time
+        notes:
+          type: string
+      required:
+      - meter
+      - reading_date
+      - reading_value
+    MeterRequest:
+      type: object
+      properties:
+        meter_number:
+          type: string
+          minLength: 1
+          maxLength: 50
+        meter_type:
+          $ref: '#/components/schemas/MeterTypeEnum'
+        customer:
+          type: integer
+        status:
+          $ref: '#/components/schemas/MeterStatusEnum'
+        installation_date:
+          type: string
+          format: date
+      required:
+      - customer
+      - installation_date
+      - meter_number
+      - meter_type
+    MeterStatusEnum:
+      enum:
+      - active
+      - inactive
+      - faulty
+      type: string
+      description: |-
+        * `active` - Active
+        * `inactive` - Inactive
+        * `faulty` - Faulty
+    MeterTypeEnum:
+      enum:
+      - electricity
+      - water
+      type: string
+      description: |-
+        * `electricity` - Electricity
+        * `water` - Water
+    PaginatedBillList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bill'
+    PaginatedLedgerEntryList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerEntry'
+    PaginatedMeterList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Meter'
+    PaginatedMeterReadingList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MeterReading'
+    PaginatedPaymentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Payment'
+    PaginatedSupportTicketList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportTicket'
+    PaginatedTariffList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tariff'
+    PaginatedTicketMessageList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketMessage'
+    PatchedMeterRequest:
+      type: object
+      properties:
+        meter_number:
+          type: string
+          minLength: 1
+          maxLength: 50
+        meter_type:
+          $ref: '#/components/schemas/MeterTypeEnum'
+        customer:
+          type: integer
+        status:
+          $ref: '#/components/schemas/MeterStatusEnum'
+        installation_date:
+          type: string
+          format: date
+    PatchedSupportTicketRequest:
+      type: object
+      properties:
+        assigned_to:
+          type: integer
+          nullable: true
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          minLength: 1
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        priority:
+          $ref: '#/components/schemas/PriorityEnum'
+        status:
+          $ref: '#/components/schemas/SupportTicketStatusEnum'
+    PatchedTariffRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        meter_type:
+          $ref: '#/components/schemas/MeterTypeEnum'
+        rate_per_unit:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,4})?$
+        fixed_charge:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        effective_from:
+          type: string
+          format: date
+        effective_to:
+          type: string
+          format: date
+          nullable: true
+        is_active:
+          type: boolean
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        bill_id:
+          type: integer
+          readOnly: true
+        customer:
+          type: integer
+          readOnly: true
+        customer_email:
+          type: string
+          format: email
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+        payment_method:
+          allOf:
+          - $ref: '#/components/schemas/PaymentMethodEnum'
+          readOnly: true
+        provider:
+          type: string
+          readOnly: true
+        provider_reference:
+          type: string
+          readOnly: true
+          nullable: true
+        idempotency_key:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/PaymentStatusEnum'
+          readOnly: true
+        initiated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        processed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - bill_id
+      - customer
+      - customer_email
+      - id
+      - idempotency_key
+      - initiated_at
+      - payment_method
+      - processed_at
+      - provider
+      - provider_reference
+      - status
+      - updated_at
+    PaymentCallback:
+      type: object
+      properties:
+        payment_id:
+          type: integer
+        successful:
+          type: boolean
+        provider_reference:
+          type: string
+          maxLength: 100
+      required:
+      - payment_id
+      - provider_reference
+      - successful
+    PaymentCallbackRequest:
+      type: object
+      properties:
+        payment_id:
+          type: integer
+        successful:
+          type: boolean
+        provider_reference:
+          type: string
+          minLength: 1
+          maxLength: 100
+      required:
+      - payment_id
+      - provider_reference
+      - successful
+    PaymentInitiation:
+      type: object
+      properties:
+        bill_id:
+          type: integer
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        payment_method:
+          allOf:
+          - $ref: '#/components/schemas/PaymentMethodEnum'
+          default: mobile_money
+        idempotency_key:
+          type: string
+          maxLength: 100
+      required:
+      - amount
+      - bill_id
+      - idempotency_key
+    PaymentInitiationRequest:
+      type: object
+      properties:
+        bill_id:
+          type: integer
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        payment_method:
+          allOf:
+          - $ref: '#/components/schemas/PaymentMethodEnum'
+          default: mobile_money
+        idempotency_key:
+          type: string
+          minLength: 1
+          maxLength: 100
+      required:
+      - amount
+      - bill_id
+      - idempotency_key
+    PaymentMethodEnum:
+      enum:
+      - mobile_money
+      - card
+      - bank_transfer
+      - cash
+      type: string
+      description: |-
+        * `mobile_money` - Mobile Money
+        * `card` - Card
+        * `bank_transfer` - Bank Transfer
+        * `cash` - Cash
+    PaymentReconciliationReport:
+      type: object
+      properties:
+        total_bills_checked:
+          type: integer
+        reconciled_count:
+          type: integer
+        discrepancy_count:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BillReconciliation'
+      required:
+      - discrepancy_count
+      - reconciled_count
+      - results
+      - total_bills_checked
+    PaymentStatusEnum:
+      enum:
+      - pending
+      - successful
+      - failed
+      - reversed
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `successful` - Successful
+        * `failed` - Failed
+        * `reversed` - Reversed
+    PriorityEnum:
+      enum:
+      - low
+      - normal
+      - high
+      - urgent
+      type: string
+      description: |-
+        * `low` - Low
+        * `normal` - Normal
+        * `high` - High
+        * `urgent` - Urgent
+    RoleDashboardResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        username:
+          type: string
+        role:
+          type: string
+      required:
+      - message
+      - role
+      - username
+    RoleEnum:
+      enum:
+      - customer
+      - technician
+      - support
+      type: string
+      description: |-
+        * `customer` - Customer
+        * `technician` - Technician
+        * `support` - Support Agent
+    SourceEnum:
+      enum:
+      - manual
+      - iot
+      type: string
+      description: |-
+        * `manual` - Manual
+        * `iot` - IoT Device
+    SupportDashboardResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        user:
+          type: string
+      required:
+      - message
+      - user
+    SupportTicket:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        customer:
+          type: integer
+          readOnly: true
+        customer_email:
+          type: string
+          format: email
+          readOnly: true
+        assigned_to:
+          type: integer
+          nullable: true
+        assigned_to_email:
+          type: string
+          format: email
+          readOnly: true
+        subject:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        priority:
+          $ref: '#/components/schemas/PriorityEnum'
+        status:
+          $ref: '#/components/schemas/SupportTicketStatusEnum'
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketMessage'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        resolved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+      required:
+      - assigned_to_email
+      - created_at
+      - customer
+      - customer_email
+      - description
+      - id
+      - messages
+      - resolved_at
+      - subject
+      - updated_at
+    SupportTicketRequest:
+      type: object
+      properties:
+        assigned_to:
+          type: integer
+          nullable: true
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          minLength: 1
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        priority:
+          $ref: '#/components/schemas/PriorityEnum'
+        status:
+          $ref: '#/components/schemas/SupportTicketStatusEnum'
+      required:
+      - description
+      - subject
+    SupportTicketStatusEnum:
+      enum:
+      - open
+      - in_progress
+      - waiting
+      - resolved
+      - closed
+      type: string
+      description: |-
+        * `open` - Open
+        * `in_progress` - In Progress
+        * `waiting` - Waiting for Customer
+        * `resolved` - Resolved
+        * `closed` - Closed
+    Tariff:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        meter_type:
+          $ref: '#/components/schemas/MeterTypeEnum'
+        rate_per_unit:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,4})?$
+        fixed_charge:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        effective_from:
+          type: string
+          format: date
+        effective_to:
+          type: string
+          format: date
+          nullable: true
+        is_active:
+          type: boolean
+        created_by:
+          type: integer
+          readOnly: true
+        created_by_email:
+          type: string
+          format: email
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - created_by
+      - created_by_email
+      - effective_from
+      - id
+      - meter_type
+      - name
+      - rate_per_unit
+      - updated_at
+    TariffRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        meter_type:
+          $ref: '#/components/schemas/MeterTypeEnum'
+        rate_per_unit:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,4})?$
+        fixed_charge:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        effective_from:
+          type: string
+          format: date
+        effective_to:
+          type: string
+          format: date
+          nullable: true
+        is_active:
+          type: boolean
+      required:
+      - effective_from
+      - meter_type
+      - name
+      - rate_per_unit
+    TechnicianDashboardResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        user:
+          type: string
+      required:
+      - message
+      - user
+    TicketMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        ticket:
+          type: integer
+        sender:
+          type: integer
+          readOnly: true
+        sender_email:
+          type: string
+          format: email
+          readOnly: true
+        message:
+          type: string
+        is_internal:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - message
+      - sender
+      - sender_email
+      - ticket
+    TicketMessageRequest:
+      type: object
+      properties:
+        ticket:
+          type: integer
+        message:
+          type: string
+          minLength: 1
+        is_internal:
+          type: boolean
+      required:
+      - message
+      - ticket
+    TokenObtainPair:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - refresh
+    TokenObtainPairRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - password
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+      required:
+      - access
+    TokenRefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - refresh
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+        email:
+          type: string
+          format: email
+          readOnly: true
+        phone_number:
+          type: string
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - email
+      - id
+      - phone_number
+      - role
+      - updated_at
+      - username
+    UserRegistration:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone_number:
+          type: string
+          maxLength: 20
+      required:
+      - email
+      - id
+      - username
+    UserRegistrationRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+        phone_number:
+          type: string
+          maxLength: 20
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+      required:
+      - email
+      - password
+      - username
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

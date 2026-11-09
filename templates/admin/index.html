@@ -119,61 +119,75 @@
     </section>
 
     <!-- Monthly Revenue Chart -->
-    <section>
-        <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <section>
+            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
 
-            <div class="mb-6">
-                <h2 class="text-lg font-semibold">
-                    Monthly Revenue Trend
-                </h2>
+                <div class="mb-6">
+                    <h2 class="text-lg font-semibold">
+                        Monthly Revenue Trend
+                    </h2>
 
-                <p class="mt-1 text-sm text-gray-500">
-                    Successful payments received over the last 12 months (KES).
-                </p>
-            </div>
+                    <p class="mt-1 text-sm text-gray-500">
+                        Successful payments received over the last 12 months (KES).
+                    </p>
+                </div>
 
-            <div class="grid grid-cols-12 items-end gap-2" style="height: 230px;">
+                <div class="grid grid-cols-12 items-end gap-2" style="height: 230px;">
 
-                {% for month in monthly_revenue %}
+                    {% for month in monthly_revenue %}
 
-                    <div class="flex h-full min-w-0 flex-col items-center justify-end">
+                        <div class="flex h-full min-w-0 flex-col items-center justify-end">
 
-                        <span class="mb-2 text-xs text-gray-500">
-                            {{ month.amount|floatformat:0 }}
-                        </span>
+                            <span class="mb-2 text-xs text-gray-500">
+                                {{ month.amount|floatformat:0 }}
+                            </span>
 
-                        <div class="flex w-full items-end justify-center"
-                             style="height: 150px;">
+                            <div class="flex w-full items-end justify-center"
+                                style="height: 150px;">
 
-                            <div
-                                class="w-3/4 rounded-t-md"
-                                style="
-                                    height: {{ month.height }}%;
-                                    min-height: 3px;
-                                    background-color: #0d9488;
-                                ">
+                                <div
+                                    class="w-3/4 rounded-t-md revenue-bar"
+                                    data-height="{{ month.height }}">
+                                </div>
+
                             </div>
+
+                            <span class="mt-2 text-xs text-gray-500">
+                                {{ month.label }}
+                            </span>
 
                         </div>
 
-                        <span class="mt-2 text-xs text-gray-500">
-                            {{ month.label }}
-                        </span>
+                    {% empty %}
 
-                    </div>
+                        <p class="col-span-12 text-sm text-gray-500">
+                            No monthly revenue data available.
+                        </p>
 
-                {% empty %}
+                    {% endfor %}
 
-                    <p class="col-span-12 text-sm text-gray-500">
-                        No monthly revenue data available.
-                    </p>
-
-                {% endfor %}
+                </div>
 
             </div>
+        </section>
 
-        </div>
-    </section>
+        <style>
+            .revenue-bar {
+                background-color: #0d9488;
+                min-height: 3px;
+                height: calc(var(--bar-height, 0) * 1%);
+            }
+        </style>
+
+        <script>
+            document.querySelectorAll(".revenue-bar").forEach(function (bar) {
+                const height = Number(bar.dataset.height);
+
+                if (Number.isFinite(height) && height >= 0 && height <= 100) {
+                    bar.style.setProperty("--bar-height", height);
+                }
+            });
+        </script>
 
     <!-- Customer Support Statistics -->
     <section>

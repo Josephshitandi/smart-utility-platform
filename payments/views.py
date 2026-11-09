@@ -1,6 +1,8 @@
-from rest_framework import generics, status
+from rest_framework import generics, status, serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+from drf_spectacular.utils import extend_schema
 
 from accounts.permissions import IsAdministrator
 
@@ -126,6 +128,71 @@ class LedgerEntryListView(generics.ListAPIView):
         return queryset.none()
 
 
+# --------------------------------------------------
+# PAYMENT RECONCILIATION RESPONSE SERIALIZERS
+# --------------------------------------------------
+
+class BillReconciliationSerializer(serializers.Serializer):
+    bill_id = serializers.IntegerField()
+    bill_amount = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+    )
+
+    successful_payment_count = serializers.IntegerField()
+    ledger_entry_count = serializers.IntegerField()
+
+    payment_total = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+    )
+
+    ledger_total = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+    )
+
+    amount_difference = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+    )
+
+    outstanding_amount = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+    )
+
+    missing_ledger_payments = serializers.ListField(
+        child=serializers.IntegerField(),
+    )
+
+    unmatched_ledger_entry_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+    )
+
+    duplicate_ledger_payment_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+    )
+
+    ledger_payment_mismatch_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+    )
+
+    is_reconciled = serializers.BooleanField()
+
+    issues = serializers.ListField(
+        child=serializers.CharField(),
+    )
+
+
+class PaymentReconciliationReportSerializer(serializers.Serializer):
+    total_bills_checked = serializers.IntegerField()
+    reconciled_count = serializers.IntegerField()
+    discrepancy_count = serializers.IntegerField()
+
+    results = BillReconciliationSerializer(many=True)
+
+
 class PaymentReconciliationView(generics.GenericAPIView):
     """
     Administrator-only financial reconciliation report.
@@ -136,8 +203,18 @@ class PaymentReconciliationView(generics.GenericAPIView):
     This endpoint is read-only.
     """
 
+    serializer_class = PaymentReconciliationReportSerializer
     permission_classes = [IsAdministrator]
 
+    @extend_schema(
+        responses={
+            200: PaymentReconciliationReportSerializer,
+        },
+        description=(
+            "Administrator-only read-only report comparing "
+            "successful payments against financial ledger entries."
+        ),
+    )
     def get(self, request, *args, **kwargs):
         report = reconcile_payments()
 

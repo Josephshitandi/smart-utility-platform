@@ -7,26 +7,91 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+    SpectacularRedocView,
+)
+
 
 urlpatterns = [
+    # --------------------------------------------------
+    # DJANGO ADMIN
+    # --------------------------------------------------
+
     path("admin/", admin.site.urls),
 
-    # Meters
-    path("api/v1/meters/", include("meters.urls")),
+    # --------------------------------------------------
+    # API DOCUMENTATION
+    # --------------------------------------------------
 
-    # Billing
-    path("api/v1/billing/", include("billing.urls")),
+    path(
+        "api/schema/",
+        SpectacularAPIView.as_view(),
+        name="schema",
+    ),
 
-    # Payments
-    path("api/v1/payments/", include("payments.urls")),
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
 
-    # Accounts
-    path("api/v1/auth/", include("accounts.urls")),
+    path(
+        "api/redoc/",
+        SpectacularRedocView.as_view(url_name="schema"),
+        name="redoc",
+    ),
 
-    # Support
-    path("api/v1/support/", include("support.urls")),
+    # --------------------------------------------------
+    # METERS
+    # --------------------------------------------------
 
-    # JWT Authentication
+    path(
+        "api/v1/meters/",
+        include("meters.urls"),
+    ),
+
+    # --------------------------------------------------
+    # BILLING
+    # --------------------------------------------------
+
+    path(
+        "api/v1/billing/",
+        include("billing.urls"),
+    ),
+
+    # --------------------------------------------------
+    # PAYMENTS
+    # --------------------------------------------------
+
+    path(
+        "api/v1/payments/",
+        include("payments.urls"),
+    ),
+
+    # --------------------------------------------------
+    # ACCOUNTS
+    # --------------------------------------------------
+
+    path(
+        "api/v1/auth/",
+        include("accounts.urls"),
+    ),
+
+    # --------------------------------------------------
+    # CUSTOMER SUPPORT
+    # --------------------------------------------------
+
+    path(
+        "api/v1/support/",
+        include("support.urls"),
+    ),
+
+    # --------------------------------------------------
+    # JWT AUTHENTICATION
+    # --------------------------------------------------
+
     path(
         "api/v1/auth/login/",
         TokenObtainPairView.as_view(),
