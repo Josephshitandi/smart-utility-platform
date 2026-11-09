@@ -1,0 +1,114 @@
+
+{% extends "admin/base.html" %}
+{% load i18n %}
+
+{% block title %}
+    Smart Utility Dashboard
+{% endblock %}
+
+{% block branding %}
+    {% include "unfold/helpers/site_branding.html" %}
+{% endblock %}
+
+{% block content %}
+
+<div style="margin-bottom: 25px;">
+    <h1 style="font-size: 25px; font-weight: 700;">
+        Smart Utility Overview
+    </h1>
+    <p style="color: #888;">
+        Monitor your utility operations from one place.
+    </p>
+</div>
+
+<h2 style="font-size: 18px; margin-bottom: 15px;">
+    User Management
+</h2>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px;">
+
+    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
+        <p>Total Users</p>
+        <h2 style="font-size: 30px; font-weight: bold;">{{ total_users }}</h2>
+    </div>
+
+    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
+        <p>Total Customers</p>
+        <h2 style="font-size: 30px; font-weight: bold;">{{ total_customers }}</h2>
+    </div>
+
+</div>
+
+<h2 style="font-size: 18px; margin-bottom: 15px;">
+    Meter Management
+</h2>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px;">
+
+    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
+        <p>Total Meters</p>
+        <h2 style="font-size: 30px; font-weight: bold;">{{ total_meters }}</h2>
+    </div>
+
+    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
+        <p>Active Meters</p>
+        <h2 style="font-size: 30px; font-weight: bold;">{{ active_meters }}</h2>
+    </div>
+
+</div>
+
+<h2 style="font-size: 18px; margin-bottom: 15px;">
+    Billing
+</h2>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px;">
+
+    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
+        <p>Total Bills</p>
+        <h2 style="font-size: 30px; font-weight: bold;">{{ total_bills }}</h2>
+    </div>
+
+    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
+        <p>Outstanding Bills</p>
+        <h2 style="font-size: 30px; font-weight: bold;">{{ outstanding_bills }}</h2>
+    </div>
+
+    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
+        <p>Outstanding Amount</p>
+        <h2 style="font-size: 26px; font-weight: bold;">KES {{ outstanding_amount|floatformat:2 }}</h2>
+    </div>
+
+</div>
+
+<h2 style="font-size: 18px; margin-bottom: 15px;">
+    Payments
+</h2>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px;">
+
+    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
+        <p>Successful Payments</p>
+        <h2 style="font-size: 30px; font-weight: bold;">{{ successful_payments }}</h2>
+    </div>
+
+    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
+        <p>Total Payments Received</p>
+        <h2 style="font-size: 26px; font-weight: bold;">KES {{ total_payments_received|floatformat:2 }}</h2>
+    </div>
+
+</div>
+
+<h2 style="font-size: 18px; margin-bottom: 15px;">
+    Customer Support
+</h2>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px;">
+
+    <div style="padding: 22px; border-radius: 10px; background: var(--color-base-100); border: 1px solid var(--color-base-200);">
+        <p>Open Support Tickets</p>
+        <h2 style="font-size: 30px; font-weight: bold;">{{ open_tickets }}</h2>
+    </div>
+
+</div>
+
+{% endblock %}

@@ -71,7 +71,7 @@ ROOT_URLCONF = 'smart_utility.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -184,6 +184,8 @@ UNFOLD = {
         "SITE_HEADER": "Smart Utility Management",
         "SITE_SUBHEADER": "Administration Portal",
         "SITE_SYMBOL": "electric_bolt",
+
+        "DASHBOARD_CALLBACK": "smart_utility.dashboard.dashboard_callback",
 
         "SHOW_HISTORY": True,
         "SHOW_VIEW_ON_SITE": False,
