@@ -2,6 +2,7 @@ import { useState } from 'react'
 import './App.css'
 import Brand from './components/Brand'
 import Button from './components/Button'
+import InputField from './components/InputField'
 
 function App() {
   const [showPassword, setShowPassword] = useState(false)
@@ -47,30 +48,15 @@ function App() {
             </div>
 
             <div className="mb-3">
-              <label htmlFor="password" className="form-label">
-                Password
-              </label>
-
-              <div className="password-wrapper">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  className="form-control"
-                  id="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                />
-
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
-                </button>
-              </div>
+              <InputField
+                label="Email address"
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
             </div>
 
             <div className="text-end mb-4">
