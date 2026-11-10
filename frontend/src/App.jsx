@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import './App.css'
+import Brand from './components/Brand'
+import Button from './components/Button'
 
 function App() {
   const [showPassword, setShowPassword] = useState(false)
@@ -16,14 +18,10 @@ function App() {
   return (
     <div className="login-page">
       <div className="login-container">
-        <div className="login-brand">
-          <div className="brand-icon">
-            <i className="bi bi-lightning-charge-fill"></i>
-          </div>
-
-          <h1>Smart Utility</h1>
-          <p>Utility management made simple.</p>
-        </div>
+        <Brand
+          title="Smart Utility"
+          description="Utility management made simple."
+        />
 
         <div className="login-card">
           <div className="login-heading">
@@ -81,9 +79,12 @@ function App() {
               </a>
             </div>
 
-            <button type="submit" className="btn login-button w-100">
+            <Button
+              type="submit"
+              className="login-button w-100"
+            >
               Sign In
-            </button>
+            </Button>
 
             {message && (
               <div className="alert alert-info mt-3 mb-0" role="status">
