@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import '../App.css'
 import Brand from '../components/Brand'
@@ -8,6 +8,7 @@ import InputField from '../components/InputField'
 import apiClient from '../api/client'
 
 function Login() {
+  const navigate = useNavigate()  
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -40,9 +41,13 @@ function Login() {
         response.data.refresh
       )
 
-      setMessage('Login successful! Your account is authenticated.')
+      setMessage('Login successful! Redirecting to dashboard...')
 
-      setPassword('')
+        setPassword('')
+
+        setTimeout(() => {
+        navigate('/dashboard')
+        }, 1000)
 
     } catch (err) {
       const data = err.response?.data
