@@ -49,13 +49,25 @@ function App() {
 
             <div className="mb-3">
               <InputField
-                label="Email address"
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                label="Password"
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
                 required
+                rightElement={
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <i
+                      className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`}
+                    ></i>
+                  </button>
+                }
               />
             </div>
 

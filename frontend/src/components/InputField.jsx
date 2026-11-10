@@ -6,6 +6,7 @@ function InputField({
   value,
   onChange,
   required = false,
+  rightElement,
 }) {
   return (
     <div className="mb-3">
@@ -13,15 +14,19 @@ function InputField({
         {label}
       </label>
 
-      <input
-        type={type}
-        className="form-control"
-        id={id}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        required={required}
-      />
+      <div className="position-relative">
+        <input
+          type={type}
+          className="form-control"
+          id={id}
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+          required={required}
+        />
+
+        {rightElement}
+      </div>
     </div>
   )
 }
