@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import './App.css'
-import Brand from './components/Brand'
-import Button from './components/Button'
-import InputField from './components/InputField'
+import '../App.css'
+import Brand from '../components/Brand'
+import Button from '../components/Button'
+import InputField from '../components/InputField'
+import { Link } from 'react-router-dom'
 
 function Login() {
   const [showPassword, setShowPassword] = useState(false)
@@ -93,9 +94,9 @@ function Login() {
 
           <div className="login-footer">
             <p>
-              Don't have an account? <a href="#register">Contact support</a>
+                Don't have an account? <Link to="/register">Register here</Link>
             </p>
-          </div>
+            </div>
         </div>
 
         <p className="copyright">
