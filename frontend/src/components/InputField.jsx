@@ -1,6 +1,7 @@
 function InputField({
   label,
   id,
+  name,
   type = 'text',
   placeholder,
   value,
@@ -19,6 +20,7 @@ function InputField({
           type={type}
           className="form-control"
           id={id}
+          name={name || id}
           placeholder={placeholder}
           value={value}
           onChange={onChange}
