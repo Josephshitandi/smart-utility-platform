@@ -11,11 +11,18 @@ function Dashboard() {
   const [meters, setMeters] = useState([])
   const [readings, setReadings] = useState([])
   const [bills, setBills] = useState([])
+  const [payments, setPayments] = useState([])
+  const [ledgerEntries, setLedgerEntries] = useState([])
+
+  const [paymentSubmittingBillId, setPaymentSubmittingBillId] = useState(null)
+  const [paymentMessage, setPaymentMessage] = useState('')
+  const [paymentError, setPaymentError] = useState('')
 
   const [meterCount, setMeterCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  // Load dashboard information.
   useEffect(() => {
     const fetchDashboardData = async () => {
       const token = sessionStorage.getItem('access_token')
@@ -31,11 +38,15 @@ function Dashboard() {
           metersResponse,
           readingsResponse,
           billsResponse,
+          paymentsResponse,
+          ledgerResponse,
         ] = await Promise.all([
           apiClient.get('auth/profile/'),
           apiClient.get('meters/'),
           apiClient.get('meters/readings/'),
           apiClient.get('billing/bills/'),
+          apiClient.get('payments/'),
+          apiClient.get('payments/ledger/'),
         ])
 
         setProfile(profileResponse.data)
@@ -55,10 +66,22 @@ function Dashboard() {
           ? billData
           : billData.results || []
 
+        const paymentData = paymentsResponse.data
+        const paymentList = Array.isArray(paymentData)
+          ? paymentData
+          : paymentData.results || []
+
+        const ledgerData = ledgerResponse.data
+        const ledgerList = Array.isArray(ledgerData)
+          ? ledgerData
+          : ledgerData.results || []
+
         setMeters(meterList)
         setMeterCount(meterData.count ?? meterList.length)
         setReadings(readingList)
         setBills(billList)
+        setPayments(paymentList)
+        setLedgerEntries(ledgerList)
 
       } catch (err) {
         if (err.response?.status === 401) {
@@ -81,6 +104,7 @@ function Dashboard() {
     fetchDashboardData()
   }, [navigate])
 
+  // Logout.
   const handleLogout = () => {
     sessionStorage.removeItem('access_token')
     sessionStorage.removeItem('refresh_token')
@@ -88,12 +112,78 @@ function Dashboard() {
     navigate('/login', { replace: true })
   }
 
+  // Initiate payment.
+  const handleInitiatePayment = async (bill) => {
+    setPaymentMessage('')
+    setPaymentError('')
+    setPaymentSubmittingBillId(bill.id)
+
+    try {
+      const idempotencyKey = `web-${bill.id}-${
+        globalThis.crypto?.randomUUID?.() ||
+        `${Date.now()}-${Math.random().toString(16).slice(2)}`
+      }`
+
+      await apiClient.post('payments/', {
+        bill_id: bill.id,
+        amount: bill.amount,
+        payment_method: 'mobile_money',
+        idempotency_key: idempotencyKey,
+      })
+
+      // Refresh payment and ledger information.
+      const [paymentsResponse, ledgerResponse] = await Promise.all([
+        apiClient.get('payments/'),
+        apiClient.get('payments/ledger/'),
+      ])
+
+      const paymentData = paymentsResponse.data
+      const paymentList = Array.isArray(paymentData)
+        ? paymentData
+        : paymentData.results || []
+
+      const ledgerData = ledgerResponse.data
+      const ledgerList = Array.isArray(ledgerData)
+        ? ledgerData
+        : ledgerData.results || []
+
+      setPayments(paymentList)
+      setLedgerEntries(ledgerList)
+
+      setPaymentMessage(
+        `Payment for Bill #${bill.id} has been initiated. Its status will remain pending until the provider confirms it.`
+      )
+
+    } catch (err) {
+      console.error('Payment initiation error:', err.response?.data || err)
+
+      const responseData = err.response?.data
+
+      const errorMessage = typeof responseData?.detail === 'string'
+        ? responseData.detail
+        : responseData
+          ? Object.entries(responseData)
+              .map(([field, messages]) =>
+                `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`
+              )
+              .join(' ')
+          : 'Unable to initiate payment. Please try again.'
+
+      setPaymentError(errorMessage)
+
+    } finally {
+      setPaymentSubmittingBillId(null)
+    }
+  }
+
+  // Format dates.
   const formatDate = (date) => {
     if (!date) return '--'
 
     return new Date(date).toLocaleString()
   }
 
+  // Format currency.
   const formatCurrency = (amount) => {
     return `KSh ${Number(amount).toLocaleString('en-KE', {
       minimumFractionDigits: 2,
@@ -113,7 +203,24 @@ function Dashboard() {
 
   const totalBills = bills.length
 
-  // Calculate the latest consumption for each meter.
+  // Calculate successful payments.
+  const successfulPayments = payments.filter(
+    (payment) => payment.status === 'successful'
+  )
+
+  const totalAmountPaid = successfulPayments.reduce(
+    (total, payment) => total + Number(payment.amount),
+    0
+  )
+
+  // Payment status styling.
+  const paymentStatusClass = (paymentStatus) => {
+    if (paymentStatus === 'successful') return 'bg-success'
+    if (paymentStatus === 'pending') return 'bg-warning text-dark'
+    return 'bg-danger'
+  }
+
+  // Calculate latest consumption for each meter.
   const latestConsumption = meters.map((meter) => {
     const meterReadings = readings
       .filter((reading) => Number(reading.meter) === Number(meter.id))
@@ -139,6 +246,7 @@ function Dashboard() {
     }
   })
 
+  // Loading state.
   if (loading) {
     return (
       <div className="min-vh-100 d-flex justify-content-center align-items-center">
@@ -152,6 +260,7 @@ function Dashboard() {
     )
   }
 
+  // Error state.
   if (error) {
     return (
       <div className="container py-5">
@@ -177,6 +286,18 @@ function Dashboard() {
           </span>
 
           <div className="d-flex align-items-center gap-3">
+
+            {/* Administrator-only bill generation */}
+            {profile?.is_superuser && (
+              <button
+                className="btn btn-outline-light btn-sm"
+                onClick={() => navigate('/bills/generate')}
+              >
+                <i className="bi bi-receipt me-1"></i>
+                Generate Bill
+              </button>
+            )}
+
             <span className="text-white">
               <i className="bi bi-person-circle me-2"></i>
               {profile?.username}
@@ -189,8 +310,8 @@ function Dashboard() {
               <i className="bi bi-box-arrow-right me-1"></i>
               Logout
             </button>
-          </div>
 
+          </div>
         </div>
       </nav>
 
@@ -265,6 +386,30 @@ function Dashboard() {
             </div>
           </div>
 
+          {/* Successful Payments */}
+          <div className="col-md-6 col-xl-3">
+            <div className="card border-0 shadow-sm h-100">
+              <div className="card-body">
+                <p className="text-muted mb-1">Successful Payments</p>
+                <h3 className="fw-bold">{successfulPayments.length}</h3>
+                <i className="bi bi-check-circle fs-1 text-success"></i>
+              </div>
+            </div>
+          </div>
+
+          {/* Total Amount Paid */}
+          <div className="col-md-6 col-xl-3">
+            <div className="card border-0 shadow-sm h-100">
+              <div className="card-body">
+                <p className="text-muted mb-1">Total Amount Paid</p>
+                <h4 className="fw-bold">
+                  {formatCurrency(totalAmountPaid)}
+                </h4>
+                <i className="bi bi-wallet2 fs-1 text-primary"></i>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         {/* Registered Meters */}
@@ -285,7 +430,6 @@ function Dashboard() {
             ) : (
               <div className="table-responsive">
                 <table className="table table-hover align-middle">
-
                   <thead className="table-light">
                     <tr>
                       <th>Meter Number</th>
@@ -318,7 +462,6 @@ function Dashboard() {
                       </tr>
                     ))}
                   </tbody>
-
                 </table>
               </div>
             )}
@@ -341,7 +484,6 @@ function Dashboard() {
             ) : (
               <div className="table-responsive">
                 <table className="table table-hover align-middle">
-
                   <thead className="table-light">
                     <tr>
                       <th>Meter Number</th>
@@ -381,7 +523,6 @@ function Dashboard() {
                       </tr>
                     ))}
                   </tbody>
-
                 </table>
               </div>
             )}
@@ -407,7 +548,6 @@ function Dashboard() {
             ) : (
               <div className="table-responsive">
                 <table className="table table-hover align-middle">
-
                   <thead className="table-light">
                     <tr>
                       <th>Meter Number</th>
@@ -426,7 +566,6 @@ function Dashboard() {
                         </td>
 
                         <td>{reading.reading_value}</td>
-
                         <td>{reading.source}</td>
 
                         <td>
@@ -439,7 +578,6 @@ function Dashboard() {
                       </tr>
                     ))}
                   </tbody>
-
                 </table>
               </div>
             )}
@@ -461,6 +599,18 @@ function Dashboard() {
               </span>
             </div>
 
+            {paymentMessage && (
+              <div className="alert alert-success" role="alert">
+                {paymentMessage}
+              </div>
+            )}
+
+            {paymentError && (
+              <div className="alert alert-danger" role="alert">
+                {paymentError}
+              </div>
+            )}
+
             {bills.length === 0 ? (
               <div className="text-center py-4">
                 <i className="bi bi-receipt fs-1 text-muted"></i>
@@ -471,7 +621,6 @@ function Dashboard() {
             ) : (
               <div className="table-responsive">
                 <table className="table table-hover align-middle">
-
                   <thead className="table-light">
                     <tr>
                       <th>Bill ID</th>
@@ -480,6 +629,7 @@ function Dashboard() {
                       <th>Amount</th>
                       <th>Due Date</th>
                       <th>Status</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
 
@@ -511,10 +661,189 @@ function Dashboard() {
                             {bill.status}
                           </span>
                         </td>
+
+                        <td>
+                          {bill.status === 'pending' ? (
+                            (() => {
+                              const hasPendingPayment = payments.some(
+                                (payment) =>
+                                  Number(payment.bill_id) === Number(bill.id) &&
+                                  payment.status === 'pending'
+                              )
+
+                              return (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-primary"
+                                  disabled={
+                                    paymentSubmittingBillId !== null ||
+                                    hasPendingPayment
+                                  }
+                                  onClick={() => handleInitiatePayment(bill)}
+                                >
+                                  {paymentSubmittingBillId === bill.id ? (
+                                    <>
+                                      <span
+                                        className="spinner-border spinner-border-sm me-1"
+                                        role="status"
+                                      ></span>
+                                      Processing...
+                                    </>
+                                  ) : hasPendingPayment ? (
+                                    'Payment Pending'
+                                  ) : (
+                                    <>
+                                      <i className="bi bi-credit-card me-1"></i>
+                                      Pay Now
+                                    </>
+                                  )}
+                                </button>
+                              )
+                            })()
+                          ) : (
+                            '--'
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
+                </table>
+              </div>
+            )}
 
+          </div>
+        </div>
+
+        {/* Payment History */}
+        <div className="card border-0 shadow-sm mt-4">
+          <div className="card-body p-4">
+
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h5 className="fw-bold mb-0">
+                My Payment History
+              </h5>
+
+              <span className="badge bg-primary">
+                {payments.length} Payments
+              </span>
+            </div>
+
+            {payments.length === 0 ? (
+              <div className="text-center py-4">
+                <i className="bi bi-credit-card fs-1 text-muted"></i>
+                <p className="text-muted mt-3">
+                  You haven't made any payments yet.
+                </p>
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-hover align-middle">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Payment ID</th>
+                      <th>Bill ID</th>
+                      <th>Amount</th>
+                      <th>Method</th>
+                      <th>Provider</th>
+                      <th>Provider Reference</th>
+                      <th>Status</th>
+                      <th>Initiated</th>
+                      <th>Processed</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {payments.map((payment) => (
+                      <tr key={payment.id}>
+                        <td>#{payment.id}</td>
+                        <td>#{payment.bill_id}</td>
+
+                        <td className="fw-semibold">
+                          {formatCurrency(payment.amount)}
+                        </td>
+
+                        <td>{payment.payment_method}</td>
+                        <td>{payment.provider || '--'}</td>
+                        <td>{payment.provider_reference || '--'}</td>
+
+                        <td>
+                          <span className={`badge ${paymentStatusClass(payment.status)}`}>
+                            {payment.status}
+                          </span>
+                        </td>
+
+                        <td>{formatDate(payment.initiated_at)}</td>
+                        <td>{formatDate(payment.processed_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+          </div>
+        </div>
+
+        {/* Account Ledger */}
+        <div className="card border-0 shadow-sm mt-4">
+          <div className="card-body p-4">
+
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h5 className="fw-bold mb-0">
+                My Account Ledger
+              </h5>
+
+              <span className="badge bg-secondary">
+                {ledgerEntries.length} Entries
+              </span>
+            </div>
+
+            {ledgerEntries.length === 0 ? (
+              <div className="text-center py-4">
+                <i className="bi bi-journal-text fs-1 text-muted"></i>
+                <p className="text-muted mt-3">
+                  No ledger entries are available yet.
+                </p>
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-hover align-middle">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Entry ID</th>
+                      <th>Payment ID</th>
+                      <th>Bill ID</th>
+                      <th>Entry Type</th>
+                      <th>Amount</th>
+                      <th>Description</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {ledgerEntries.map((entry) => (
+                      <tr key={entry.id}>
+                        <td>#{entry.id}</td>
+
+                        <td>
+                          {entry.payment_id ? `#${entry.payment_id}` : '--'}
+                        </td>
+
+                        <td>
+                          {entry.bill_id ? `#${entry.bill_id}` : '--'}
+                        </td>
+
+                        <td>{entry.entry_type}</td>
+
+                        <td className="fw-semibold">
+                          {formatCurrency(entry.amount)}
+                        </td>
+
+                        <td>{entry.description || '--'}</td>
+                        <td>{formatDate(entry.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             )}

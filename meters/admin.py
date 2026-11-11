@@ -1,3 +1,4 @@
+
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
@@ -59,21 +60,20 @@ class MeterReadingAdmin(ModelAdmin):
     )
 
     readonly_fields = (
-        "meter",
-        "reading_value",
-        "reading_date",
         "source",
         "status",
         "recorded_by",
-        "notes",
         "created_at",
     )
 
     def has_add_permission(self, request):
-        return False
+        return request.user.is_superuser
 
     def has_change_permission(self, request, obj=None):
-        return False
+        if obj is not None:
+            return False
+
+        return request.user.is_superuser
 
     def has_delete_permission(self, request, obj=None):
         return False

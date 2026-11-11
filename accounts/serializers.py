@@ -1,4 +1,3 @@
-
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
@@ -47,6 +46,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "email",
             "phone_number",
             "role",
+            "is_superuser",
             "created_at",
             "updated_at",
         ]
