@@ -675,7 +675,8 @@ function Dashboard() {
                               View Bill
                             </button>
 
-                            {bill.status === 'pending' ? (
+                            {bill.status === 'pending' &&
+                              profile?.email === bill.customer_email ? (
                               (() => {
                                 const hasPendingPayment = payments.some(
                                   (payment) =>
