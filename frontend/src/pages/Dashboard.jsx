@@ -662,48 +662,63 @@ function Dashboard() {
                           </span>
                         </td>
 
+                                                
                         <td>
-                          {bill.status === 'pending' ? (
-                            (() => {
-                              const hasPendingPayment = payments.some(
-                                (payment) =>
-                                  Number(payment.bill_id) === Number(bill.id) &&
-                                  payment.status === 'pending'
-                              )
+                          <div className="d-flex gap-2 flex-wrap">
 
-                              return (
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-primary"
-                                  disabled={
-                                    paymentSubmittingBillId !== null ||
-                                    hasPendingPayment
-                                  }
-                                  onClick={() => handleInitiatePayment(bill)}
-                                >
-                                  {paymentSubmittingBillId === bill.id ? (
-                                    <>
-                                      <span
-                                        className="spinner-border spinner-border-sm me-1"
-                                        role="status"
-                                      ></span>
-                                      Processing...
-                                    </>
-                                  ) : hasPendingPayment ? (
-                                    'Payment Pending'
-                                  ) : (
-                                    <>
-                                      <i className="bi bi-credit-card me-1"></i>
-                                      Pay Now
-                                    </>
-                                  )}
-                                </button>
-                              )
-                            })()
-                          ) : (
-                            '--'
-                          )}
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={() => navigate(`/bills/${bill.id}`)}
+                            >
+                              <i className="bi bi-eye me-1"></i>
+                              View Bill
+                            </button>
+
+                            {bill.status === 'pending' ? (
+                              (() => {
+                                const hasPendingPayment = payments.some(
+                                  (payment) =>
+                                    Number(payment.bill_id) === Number(bill.id) &&
+                                    payment.status === 'pending'
+                                )
+
+                                return (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-primary"
+                                    disabled={
+                                      paymentSubmittingBillId !== null ||
+                                      hasPendingPayment
+                                    }
+                                    onClick={() => handleInitiatePayment(bill)}
+                                  >
+                                    {paymentSubmittingBillId === bill.id ? (
+                                      <>
+                                        <span
+                                          className="spinner-border spinner-border-sm me-1"
+                                          role="status"
+                                        ></span>
+                                        Processing...
+                                      </>
+                                    ) : hasPendingPayment ? (
+                                      'Payment Pending'
+                                    ) : (
+                                      <>
+                                        <i className="bi bi-credit-card me-1"></i>
+                                        Pay Now
+                                      </>
+                                    )}
+                                  </button>
+                                )
+                              })()
+                            ) : (
+                              <span className="text-muted">--</span>
+                            )}
+
+                          </div>
                         </td>
+
                       </tr>
                     ))}
                   </tbody>
