@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/client'
@@ -272,16 +273,27 @@ function PaymentHistory() {
                       <td>{formatDate(payment.processed_at)}</td>
 
                       <td>
-                        <button
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() =>
-                            navigate(
-                              `/bills/${payment.bill || payment.bill_id}`
-                            )
-                          }
-                        >
-                          View Bill
-                        </button>
+                        <div className="d-flex gap-2">
+                          <button
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() =>
+                              navigate(
+                                `/bills/${payment.bill || payment.bill_id}`
+                              )
+                            }
+                          >
+                            View Bill
+                          </button>
+
+                          <button
+                            className="btn btn-sm btn-outline-success"
+                            onClick={() =>
+                              navigate(`/payments/${payment.id}`)
+                            }
+                          >
+                            View Receipt
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard'
 import BillGeneration from './pages/BillGeneration'
 import BillDetails from './pages/BillDetails'
 import PaymentHistory from './pages/PaymentHistory'
+import PaymentReceipt from './pages/PaymentReceipt'
 
 function App() {
   return (
@@ -24,6 +25,8 @@ function App() {
       <Route path="/bills/:id" element={<BillDetails />} />
 
       <Route path="/payments" element={<PaymentHistory />} />
+
+      <Route path="/payments/:id" element={<PaymentReceipt />} />
 
       <Route
         path="*"
