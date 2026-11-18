@@ -18,13 +18,70 @@ function Dashboard() {
   const [paymentMessage, setPaymentMessage] = useState('')
   const [paymentError, setPaymentError] = useState('')
 
+  const [reviewSubmittingId, setReviewSubmittingId] = useState(null)
+  const [reviewNotes, setReviewNotes] = useState({})
+  const [reviewMessage, setReviewMessage] = useState('')
+  const [reviewError, setReviewError] = useState('')
+
   const [meterCount, setMeterCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   // Load dashboard information.
+  const fetchDashboardData = async () => {
+    const [
+      profileResponse,
+      metersResponse,
+      readingsResponse,
+      billsResponse,
+      paymentsResponse,
+      ledgerResponse,
+    ] = await Promise.all([
+      apiClient.get('auth/profile/'),
+      apiClient.get('meters/'),
+      apiClient.get('meters/readings/'),
+      apiClient.get('billing/bills/'),
+      apiClient.get('payments/'),
+      apiClient.get('payments/ledger/'),
+    ])
+
+    const meterData = metersResponse.data
+    const readingData = readingsResponse.data
+    const billData = billsResponse.data
+    const paymentData = paymentsResponse.data
+    const ledgerData = ledgerResponse.data
+
+    const meterList = Array.isArray(meterData)
+      ? meterData
+      : meterData.results || []
+
+    const readingList = Array.isArray(readingData)
+      ? readingData
+      : readingData.results || []
+
+    const billList = Array.isArray(billData)
+      ? billData
+      : billData.results || []
+
+    const paymentList = Array.isArray(paymentData)
+      ? paymentData
+      : paymentData.results || []
+
+    const ledgerList = Array.isArray(ledgerData)
+      ? ledgerData
+      : ledgerData.results || []
+
+    setProfile(profileResponse.data)
+    setMeters(meterList)
+    setMeterCount(meterData.count ?? meterList.length)
+    setReadings(readingList)
+    setBills(billList)
+    setPayments(paymentList)
+    setLedgerEntries(ledgerList)
+  }
+
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const loadDashboard = async () => {
       const token = sessionStorage.getItem('access_token')
 
       if (!token) {
@@ -33,82 +90,29 @@ function Dashboard() {
       }
 
       try {
-        const [
-          profileResponse,
-          metersResponse,
-          readingsResponse,
-          billsResponse,
-          paymentsResponse,
-          ledgerResponse,
-        ] = await Promise.all([
-          apiClient.get('auth/profile/'),
-          apiClient.get('meters/'),
-          apiClient.get('meters/readings/'),
-          apiClient.get('billing/bills/'),
-          apiClient.get('payments/'),
-          apiClient.get('payments/ledger/'),
-        ])
-
-        setProfile(profileResponse.data)
-
-        const meterData = metersResponse.data
-        const meterList = Array.isArray(meterData)
-          ? meterData
-          : meterData.results || []
-
-        const readingData = readingsResponse.data
-        const readingList = Array.isArray(readingData)
-          ? readingData
-          : readingData.results || []
-
-        const billData = billsResponse.data
-        const billList = Array.isArray(billData)
-          ? billData
-          : billData.results || []
-
-        const paymentData = paymentsResponse.data
-        const paymentList = Array.isArray(paymentData)
-          ? paymentData
-          : paymentData.results || []
-
-        const ledgerData = ledgerResponse.data
-        const ledgerList = Array.isArray(ledgerData)
-          ? ledgerData
-          : ledgerData.results || []
-
-        setMeters(meterList)
-        setMeterCount(meterData.count ?? meterList.length)
-        setReadings(readingList)
-        setBills(billList)
-        setPayments(paymentList)
-        setLedgerEntries(ledgerList)
-
+        await fetchDashboardData()
       } catch (err) {
         if (err.response?.status === 401) {
           sessionStorage.removeItem('access_token')
           sessionStorage.removeItem('refresh_token')
-
           navigate('/login', { replace: true })
           return
         }
 
         console.error('Dashboard error:', err.response?.data || err)
-
         setError('Unable to load dashboard information.')
-
       } finally {
         setLoading(false)
       }
     }
 
-    fetchDashboardData()
+    loadDashboard()
   }, [navigate])
 
   // Logout.
   const handleLogout = () => {
     sessionStorage.removeItem('access_token')
     sessionStorage.removeItem('refresh_token')
-
     navigate('/login', { replace: true })
   }
 
@@ -131,7 +135,6 @@ function Dashboard() {
         idempotency_key: idempotencyKey,
       })
 
-      // Refresh payment and ledger information.
       const [paymentsResponse, ledgerResponse] = await Promise.all([
         apiClient.get('payments/'),
         apiClient.get('payments/ledger/'),
@@ -153,7 +156,6 @@ function Dashboard() {
       setPaymentMessage(
         `Payment for Bill #${bill.id} has been initiated. Its status will remain pending until the provider confirms it.`
       )
-
     } catch (err) {
       console.error('Payment initiation error:', err.response?.data || err)
 
@@ -170,16 +172,113 @@ function Dashboard() {
           : 'Unable to initiate payment. Please try again.'
 
       setPaymentError(errorMessage)
-
     } finally {
       setPaymentSubmittingBillId(null)
+    }
+  }
+
+  // Approve a flagged reading.
+  const handleApproveReading = async (reading) => {
+    setReviewMessage('')
+    setReviewError('')
+    setReviewSubmittingId(reading.id)
+
+    try {
+      await apiClient.post(
+        `meters/readings/${reading.id}/approve/`,
+        {
+          review_notes: reviewNotes[reading.id] || '',
+        }
+      )
+
+      setReviewMessage(
+        `Reading #${reading.id} has been approved successfully.`
+      )
+
+      setReviewNotes((previous) => ({
+        ...previous,
+        [reading.id]: '',
+      }))
+
+      await fetchDashboardData()
+    } catch (err) {
+      console.error('Reading approval error:', err.response?.data || err)
+
+      const responseData = err.response?.data
+
+      const errorMessage = typeof responseData?.detail === 'string'
+        ? responseData.detail
+        : responseData
+          ? Object.entries(responseData)
+              .map(([field, messages]) =>
+                `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`
+              )
+              .join(' ')
+          : 'Unable to approve this reading.'
+
+      setReviewError(errorMessage)
+    } finally {
+      setReviewSubmittingId(null)
+    }
+  }
+
+  // Reject a flagged reading.
+  const handleRejectReading = async (reading) => {
+    const notes = (reviewNotes[reading.id] || '').trim()
+
+    if (!notes) {
+      setReviewError(
+        `Please enter a rejection reason for reading #${reading.id}.`
+      )
+      return
+    }
+
+    setReviewMessage('')
+    setReviewError('')
+    setReviewSubmittingId(reading.id)
+
+    try {
+      await apiClient.post(
+        `meters/readings/${reading.id}/reject/`,
+        {
+          review_notes: notes,
+        }
+      )
+
+      setReviewMessage(
+        `Reading #${reading.id} has been rejected successfully.`
+      )
+
+      setReviewNotes((previous) => ({
+        ...previous,
+        [reading.id]: '',
+      }))
+
+      await fetchDashboardData()
+    } catch (err) {
+      console.error('Reading rejection error:', err.response?.data || err)
+
+      const responseData = err.response?.data
+
+      const errorMessage = typeof responseData?.detail === 'string'
+        ? responseData.detail
+        : responseData
+          ? Object.entries(responseData)
+              .map(([field, messages]) =>
+                `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`
+              )
+              .join(' ')
+          : 'Unable to reject this reading.'
+
+      setReviewError(errorMessage)
+    } finally {
+      setReviewSubmittingId(null)
     }
   }
 
   // Format dates.
   const formatDate = (date) => {
     if (!date) return '--'
-
     return new Date(date).toLocaleString()
   }
 
@@ -219,6 +318,13 @@ function Dashboard() {
     if (paymentStatus === 'pending') return 'bg-warning text-dark'
     return 'bg-danger'
   }
+
+  // Pending administrator reviews.
+  const pendingReviews = readings.filter(
+    (reading) =>
+      reading.status === 'flagged' &&
+      reading.review_status === 'pending'
+  )
 
   // Calculate latest consumption for each meter.
   const latestConsumption = meters.map((meter) => {
@@ -276,107 +382,122 @@ function Dashboard() {
   return (
     <div className="min-vh-100 bg-light">
 
-      
-{/* Navigation */}
-<nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
-  <div className="container-fluid px-4">
+      {/* Navigation */}
+      <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+        <div className="container-fluid px-4">
 
-    <span
-      className="navbar-brand fw-bold"
-      role="button"
-      onClick={() => navigate('/dashboard')}
-    >
-      <i className="bi bi-lightning-charge-fill me-2"></i>
-      Smart Utility
-    </span>
-
-    <button
-      className="navbar-toggler"
-      type="button"
-      data-bs-toggle="collapse"
-      data-bs-target="#mainNavbar"
-      aria-controls="mainNavbar"
-      aria-expanded="false"
-      aria-label="Toggle navigation"
-    >
-      <span className="navbar-toggler-icon"></span>
-    </button>
-
-    <div
-      className="collapse navbar-collapse"
-      id="mainNavbar"
-    >
-      <ul className="navbar-nav me-auto ms-lg-4 gap-lg-2">
-
-        <li className="nav-item">
-          <button
-            className="nav-link text-white border-0 bg-transparent"
+          <span
+            className="navbar-brand fw-bold"
+            role="button"
             onClick={() => navigate('/dashboard')}
           >
-            <i className="bi bi-speedometer2 me-1"></i>
-            Dashboard
-          </button>
-        </li>
+            <i className="bi bi-lightning-charge-fill me-2"></i>
+            Smart Utility
+          </span>
 
-        <li className="nav-item">
           <button
-            className="nav-link text-white border-0 bg-transparent"
-            onClick={() => {
-              document.getElementById('bill-history')?.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start',
-              })
-            }}
+            className="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#mainNavbar"
+            aria-controls="mainNavbar"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
           >
-            <i className="bi bi-receipt me-1"></i>
-            My Bills
+            <span className="navbar-toggler-icon"></span>
           </button>
-        </li>
 
-        <li className="nav-item">
-          <button
-            className="nav-link text-white border-0 bg-transparent"
-            onClick={() => navigate('/payments')}
-          >
-            <i className="bi bi-credit-card me-1"></i>
-            Payment History
-          </button>
-        </li>
+          <div className="collapse navbar-collapse" id="mainNavbar">
+            <ul className="navbar-nav me-auto ms-lg-4 gap-lg-2">
 
-        {profile?.is_superuser && (
-          <li className="nav-item">
-            <button
-              className="nav-link text-white border-0 bg-transparent"
-              onClick={() => navigate('/bills/generate')}
-            >
-              <i className="bi bi-plus-circle me-1"></i>
-              Generate Bill
-            </button>
-          </li>
-        )}
+              <li className="nav-item">
+                <button
+                  className="nav-link text-white border-0 bg-transparent"
+                  onClick={() => navigate('/dashboard')}
+                >
+                  <i className="bi bi-speedometer2 me-1"></i>
+                  Dashboard
+                </button>
+              </li>
 
-      </ul>
+              <li className="nav-item">
+                <button
+                  className="nav-link text-white border-0 bg-transparent"
+                  onClick={() => {
+                    document.getElementById('bill-history')?.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'start',
+                    })
+                  }}
+                >
+                  <i className="bi bi-receipt me-1"></i>
+                  My Bills
+                </button>
+              </li>
 
-      <div className="d-flex align-items-center gap-3 mt-3 mt-lg-0">
+              {profile?.is_superuser && (
+                <li className="nav-item">
+                  <button
+                    className="nav-link text-white border-0 bg-transparent"
+                    onClick={() => {
+                      document.getElementById('reading-reviews')?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start',
+                      })
+                    }}
+                  >
+                    <i className="bi bi-clipboard-check me-1"></i>
+                    Reading Reviews
+                    {pendingReviews.length > 0 && (
+                      <span className="badge bg-warning text-dark ms-2">
+                        {pendingReviews.length}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              )}
 
-        <span className="text-white">
-          <i className="bi bi-person-circle me-2"></i>
-          {profile?.username}
-        </span>
+              <li className="nav-item">
+                <button
+                  className="nav-link text-white border-0 bg-transparent"
+                  onClick={() => navigate('/payments')}
+                >
+                  <i className="bi bi-credit-card me-1"></i>
+                  Payment History
+                </button>
+              </li>
 
-        <button
-          className="btn btn-outline-light btn-sm"
-          onClick={handleLogout}
-        >
-          <i className="bi bi-box-arrow-right me-1"></i>
-          Logout
-        </button>
+              {profile?.is_superuser && (
+                <li className="nav-item">
+                  <button
+                    className="nav-link text-white border-0 bg-transparent"
+                    onClick={() => navigate('/bills/generate')}
+                  >
+                    <i className="bi bi-plus-circle me-1"></i>
+                    Generate Bill
+                  </button>
+                </li>
+              )}
 
-      </div>
-    </div>
-  </div>
-</nav>
+            </ul>
 
+            <div className="d-flex align-items-center gap-3 mt-3 mt-lg-0">
+              <span className="text-white">
+                <i className="bi bi-person-circle me-2"></i>
+                {profile?.username}
+              </span>
+
+              <button
+                className="btn btn-outline-light btn-sm"
+                onClick={handleLogout}
+              >
+                <i className="bi bi-box-arrow-right me-1"></i>
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
 
       <div className="container-fluid px-4 py-4">
 
@@ -398,82 +519,266 @@ function Dashboard() {
         {/* Dashboard Summary Cards */}
         <div className="row g-4">
 
-          {/* Meters */}
-          <div className="col-md-6 col-xl-3">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
-                <p className="text-muted mb-1">My Meters</p>
-                <h3 className="fw-bold">{meterCount}</h3>
-                <i className="bi bi-speedometer2 fs-1 text-primary"></i>
+          {(profile?.role === 'customer' ||
+            profile?.role === 'technician' ||
+            profile?.is_superuser) && (
+            <div className="col-md-6 col-xl-3">
+              <div className="card border-0 shadow-sm h-100">
+                <div className="card-body">
+                  <p className="text-muted mb-1">
+                    {profile?.role === 'customer' ? 'My Meters' : 'Total Meters'}
+                  </p>
+                  <h3 className="fw-bold">{meterCount}</h3>
+                  <i className="bi bi-speedometer2 fs-1 text-primary"></i>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Readings */}
-          <div className="col-md-6 col-xl-3">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
-                <p className="text-muted mb-1">Meter Readings</p>
-                <h3 className="fw-bold">{readings.length}</h3>
-                <i className="bi bi-activity fs-1 text-info"></i>
+          {(profile?.role === 'customer' ||
+            profile?.role === 'technician' ||
+            profile?.is_superuser) && (
+            <div className="col-md-6 col-xl-3">
+              <div className="card border-0 shadow-sm h-100">
+                <div className="card-body">
+                  <p className="text-muted mb-1">Meter Readings</p>
+                  <h3 className="fw-bold">{readings.length}</h3>
+                  <i className="bi bi-activity fs-1 text-info"></i>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Outstanding Bills */}
-          <div className="col-md-6 col-xl-3">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
-                <p className="text-muted mb-1">Outstanding Bills</p>
-                <h3 className="fw-bold">
-                  {outstandingBills.length}
-                </h3>
-
-                <p className="text-muted mb-2">
-                  {formatCurrency(outstandingAmount)}
-                </p>
-
-                <i className="bi bi-receipt fs-1 text-warning"></i>
+          {(profile?.role === 'customer' ||
+            profile?.role === 'support' ||
+            profile?.is_superuser) && (
+            <div className="col-md-6 col-xl-3">
+              <div className="card border-0 shadow-sm h-100">
+                <div className="card-body">
+                  <p className="text-muted mb-1">Outstanding Bills</p>
+                  <h3 className="fw-bold">{outstandingBills.length}</h3>
+                  <p className="text-muted mb-2">
+                    {formatCurrency(outstandingAmount)}
+                  </p>
+                  <i className="bi bi-receipt fs-1 text-warning"></i>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Total Bills */}
-          <div className="col-md-6 col-xl-3">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
-                <p className="text-muted mb-1">Total Bills</p>
-                <h3 className="fw-bold">{totalBills}</h3>
-                <i className="bi bi-file-earmark-text fs-1 text-success"></i>
+          {(profile?.role === 'customer' ||
+            profile?.role === 'support' ||
+            profile?.is_superuser) && (
+            <div className="col-md-6 col-xl-3">
+              <div className="card border-0 shadow-sm h-100">
+                <div className="card-body">
+                  <p className="text-muted mb-1">Total Bills</p>
+                  <h3 className="fw-bold">{totalBills}</h3>
+                  <i className="bi bi-file-earmark-text fs-1 text-success"></i>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Successful Payments */}
-          <div className="col-md-6 col-xl-3">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
-                <p className="text-muted mb-1">Successful Payments</p>
-                <h3 className="fw-bold">{successfulPayments.length}</h3>
-                <i className="bi bi-check-circle fs-1 text-success"></i>
+          {(profile?.role === 'customer' ||
+            profile?.role === 'support' ||
+            profile?.is_superuser) && (
+            <div className="col-md-6 col-xl-3">
+              <div className="card border-0 shadow-sm h-100">
+                <div className="card-body">
+                  <p className="text-muted mb-1">Successful Payments</p>
+                  <h3 className="fw-bold">{successfulPayments.length}</h3>
+                  <i className="bi bi-check-circle fs-1 text-success"></i>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Total Amount Paid */}
-          <div className="col-md-6 col-xl-3">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
-                <p className="text-muted mb-1">Total Amount Paid</p>
-                <h4 className="fw-bold">
-                  {formatCurrency(totalAmountPaid)}
-                </h4>
-                <i className="bi bi-wallet2 fs-1 text-primary"></i>
+          {(profile?.role === 'customer' ||
+            profile?.role === 'support' ||
+            profile?.is_superuser) && (
+            <div className="col-md-6 col-xl-3">
+              <div className="card border-0 shadow-sm h-100">
+                <div className="card-body">
+                  <p className="text-muted mb-1">Total Amount Paid</p>
+                  <h4 className="fw-bold">
+                    {formatCurrency(totalAmountPaid)}
+                  </h4>
+                  <i className="bi bi-wallet2 fs-1 text-primary"></i>
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {profile?.is_superuser && (
+            <div className="col-md-6 col-xl-3">
+              <div className="card border-0 shadow-sm h-100">
+                <div className="card-body">
+                  <p className="text-muted mb-1">Pending Reading Reviews</p>
+                  <h3 className="fw-bold">{pendingReviews.length}</h3>
+                  <i className="bi bi-clipboard-check fs-1 text-warning"></i>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
+
+        {/* Administrator Reading Reviews */}
+        {profile?.is_superuser && (
+          <div
+            className="card border-0 shadow-sm mt-4"
+            id="reading-reviews"
+          >
+            <div className="card-body p-4">
+
+              <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div>
+                  <h5 className="fw-bold mb-1">
+                    Administrator Reading Reviews
+                  </h5>
+                  <p className="text-muted mb-0">
+                    Review flagged meter readings before billing.
+                  </p>
+                </div>
+
+                <span className="badge bg-warning text-dark fs-6">
+                  {pendingReviews.length} Pending
+                </span>
+              </div>
+
+              {reviewMessage && (
+                <div className="alert alert-success" role="alert">
+                  {reviewMessage}
+                </div>
+              )}
+
+              {reviewError && (
+                <div className="alert alert-danger" role="alert">
+                  {reviewError}
+                </div>
+              )}
+
+              {pendingReviews.length === 0 ? (
+                <div className="text-center py-4">
+                  <i className="bi bi-check-circle fs-1 text-success"></i>
+                  <p className="fw-semibold mt-3 mb-1">
+                    No readings awaiting review.
+                  </p>
+                  <p className="text-muted mb-0">
+                    New flagged readings will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table className="table table-hover align-middle">
+                    <thead className="table-light">
+                      <tr>
+                        <th>Reading</th>
+                        <th>Customer</th>
+                        <th>Meter</th>
+                        <th>Value</th>
+                        <th>Reading Date</th>
+                        <th>Automatic Status</th>
+                        <th>Review Notes</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {pendingReviews.map((reading) => {
+                        const meter = meters.find(
+                          (item) => Number(item.id) === Number(reading.meter)
+                        )
+
+                        const isSubmitting =
+                          reviewSubmittingId === reading.id
+
+                        return (
+                          <tr key={reading.id}>
+                            <td>#{reading.id}</td>
+
+                            <td>
+                              {meter?.customer_email || '--'}
+                            </td>
+
+                            <td className="fw-semibold">
+                              {reading.meter_number || meter?.meter_number || '--'}
+                            </td>
+
+                            <td>{reading.reading_value}</td>
+
+                            <td>
+                              {formatDate(reading.reading_date)}
+                            </td>
+
+                            <td>
+                              <span className="badge bg-warning text-dark">
+                                {reading.status}
+                              </span>
+                            </td>
+
+                            <td style={{ minWidth: '210px' }}>
+                              <textarea
+                                className="form-control form-control-sm"
+                                rows="2"
+                                placeholder="Enter review notes..."
+                                value={reviewNotes[reading.id] || ''}
+                                onChange={(event) =>
+                                  setReviewNotes((previous) => ({
+                                    ...previous,
+                                    [reading.id]: event.target.value,
+                                  }))
+                                }
+                                disabled={isSubmitting}
+                              />
+                            </td>
+
+                            <td>
+                              <div className="d-flex gap-2 flex-wrap">
+
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-success"
+                                  disabled={reviewSubmittingId !== null}
+                                  onClick={() => handleApproveReading(reading)}
+                                >
+                                  {isSubmitting ? (
+                                    <>
+                                      <span className="spinner-border spinner-border-sm me-1"></span>
+                                      Processing...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <i className="bi bi-check-circle me-1"></i>
+                                      Approve
+                                    </>
+                                  )}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-danger"
+                                  disabled={reviewSubmittingId !== null}
+                                  onClick={() => handleRejectReading(reading)}
+                                >
+                                  <i className="bi bi-x-circle me-1"></i>
+                                  Reject
+                                </button>
+
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+            </div>
+          </div>
+        )}
 
         {/* Registered Meters */}
         <div className="card border-0 shadow-sm mt-4">
@@ -505,12 +810,8 @@ function Dashboard() {
                   <tbody>
                     {meters.map((meter) => (
                       <tr key={meter.id}>
-                        <td className="fw-semibold">
-                          {meter.meter_number}
-                        </td>
-
+                        <td className="fw-semibold">{meter.meter_number}</td>
                         <td>{meter.meter_type}</td>
-
                         <td>
                           <span className={`badge ${
                             meter.status === 'active'
@@ -520,7 +821,6 @@ function Dashboard() {
                             {meter.status}
                           </span>
                         </td>
-
                         <td>{meter.installation_date}</td>
                       </tr>
                     ))}
@@ -560,24 +860,14 @@ function Dashboard() {
                   <tbody>
                     {latestConsumption.map((meter) => (
                       <tr key={meter.id}>
-                        <td className="fw-semibold">
-                          {meter.meter_number}
-                        </td>
-
-                        <td>
-                          {meter.latestReading?.reading_value ?? '--'}
-                        </td>
-
-                        <td>
-                          {meter.previousReading?.reading_value ?? '--'}
-                        </td>
-
+                        <td className="fw-semibold">{meter.meter_number}</td>
+                        <td>{meter.latestReading?.reading_value ?? '--'}</td>
+                        <td>{meter.previousReading?.reading_value ?? '--'}</td>
                         <td className="fw-bold text-success">
                           {meter.consumption !== null
                             ? `${meter.consumption.toFixed(3)} units`
                             : '--'}
                         </td>
-
                         <td>
                           {meter.latestReading
                             ? formatDate(meter.latestReading.reading_date)
@@ -616,7 +906,8 @@ function Dashboard() {
                       <th>Meter Number</th>
                       <th>Reading Value</th>
                       <th>Source</th>
-                      <th>Status</th>
+                      <th>Automatic Status</th>
+                      <th>Review Status</th>
                       <th>Reading Date</th>
                     </tr>
                   </thead>
@@ -632,8 +923,26 @@ function Dashboard() {
                         <td>{reading.source}</td>
 
                         <td>
-                          <span className="badge bg-success">
+                          <span className={`badge ${
+                            reading.status === 'flagged'
+                              ? 'bg-warning text-dark'
+                              : 'bg-success'
+                          }`}>
                             {reading.status}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className={`badge ${
+                            reading.review_status === 'approved'
+                              ? 'bg-success'
+                              : reading.review_status === 'rejected'
+                                ? 'bg-danger'
+                                : reading.review_status === 'pending'
+                                  ? 'bg-warning text-dark'
+                                  : 'bg-secondary'
+                          }`}>
+                            {reading.review_status || 'not_required'}
                           </span>
                         </td>
 
@@ -649,7 +958,7 @@ function Dashboard() {
         </div>
 
         {/* Bill History */}
-        <div className="card shadow-sm" id="bill-history">
+        <div className="card shadow-sm mt-4" id="bill-history">
           <div className="card-body p-4">
 
             <div className="d-flex justify-content-between align-items-center mb-3">
@@ -725,7 +1034,6 @@ function Dashboard() {
                           </span>
                         </td>
 
-                                                
                         <td>
                           <div className="d-flex gap-2 flex-wrap">
 

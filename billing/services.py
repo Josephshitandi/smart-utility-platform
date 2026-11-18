@@ -105,13 +105,25 @@ def validate_reading_pair(meter, previous_reading, current_reading):
             "Current reading cannot be lower than the previous reading."
         )
 
-    if (
-        previous_reading.status == MeterReading.ReadingStatus.FLAGGED
-        or current_reading.status == MeterReading.ReadingStatus.FLAGGED
-    ):
-        raise ValidationError(
-            "Flagged readings must be reviewed before generating a bill."
-        )
+    for reading in (previous_reading, current_reading):
+
+        if reading.review_status == MeterReading.ReviewStatus.REJECTED:
+            raise ValidationError(
+                "Rejected readings cannot be used to generate a bill."
+            )
+
+        if reading.review_status == MeterReading.ReviewStatus.PENDING:
+            raise ValidationError(
+                "Readings awaiting administrator review cannot be billed."
+            )
+
+        if (
+            reading.status == MeterReading.ReadingStatus.FLAGGED
+            and reading.review_status != MeterReading.ReviewStatus.APPROVED
+        ):
+            raise ValidationError(
+                "Flagged readings must be approved before generating a bill."
+            )
 
     # Do not allow intermediate readings to be skipped.
     intermediate_reading_exists = MeterReading.objects.filter(

@@ -1,17 +1,28 @@
 
-from rest_framework import generics, permissions
-from rest_framework.exceptions import ValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.shortcuts import get_object_or_404
+
+from rest_framework import generics, serializers, status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import Meter, MeterReading
-from .serializers import MeterSerializer, MeterReadingSerializer
 from .permissions import (
     IsMeterAdministrator,
+    IsMeterStaff,
     IsReadingSubmitter,
+)
+from .serializers import MeterSerializer, MeterReadingSerializer
+from .services import (
+    approve_meter_reading,
+    reject_meter_reading,
 )
 
 
 class MeterListCreateView(generics.ListCreateAPIView):
     serializer_class = MeterSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
@@ -20,20 +31,17 @@ class MeterListCreateView(generics.ListCreateAPIView):
             return Meter.objects.select_related("customer").all()
 
         if user.role == "customer":
-            return Meter.objects.select_related(
-                "customer"
-            ).filter(customer=user)
+            return Meter.objects.select_related("customer").filter(
+                customer=user
+            )
 
-        if user.role in ["technician", "support"]:
-            return Meter.objects.select_related("customer").all()
-
-        return Meter.objects.none()
+        return Meter.objects.select_related("customer").all()
 
     def get_permissions(self):
         if self.request.method == "POST":
             return [IsMeterAdministrator()]
 
-        return [permissions.IsAuthenticated()]
+        return [IsAuthenticated()]
 
 
 class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -46,33 +54,29 @@ class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
             return Meter.objects.select_related("customer").all()
 
         if user.role == "customer":
-            return Meter.objects.select_related(
-                "customer"
-            ).filter(customer=user)
+            return Meter.objects.select_related("customer").filter(
+                customer=user
+            )
 
-        if user.role in ["technician", "support"]:
-            return Meter.objects.select_related("customer").all()
-
-        return Meter.objects.none()
+        return Meter.objects.select_related("customer").all()
 
     def get_permissions(self):
         if self.request.method in ["PUT", "PATCH", "DELETE"]:
             return [IsMeterAdministrator()]
 
-        return [permissions.IsAuthenticated()]
+        return [IsAuthenticated()]
 
 
 class MeterReadingListCreateView(generics.ListCreateAPIView):
     serializer_class = MeterReadingSerializer
+    permission_classes = [IsAuthenticated]
 
     search_fields = ["meter__meter_number"]
-
     ordering_fields = [
         "reading_date",
         "reading_value",
         "created_at",
     ]
-
     ordering = ["-reading_date"]
 
     def get_queryset(self):
@@ -82,53 +86,33 @@ class MeterReadingListCreateView(generics.ListCreateAPIView):
             "meter",
             "meter__customer",
             "recorded_by",
+            "reviewed_by",
         )
 
-        # Apply role-based access restrictions first.
         if user.is_superuser:
             pass
 
         elif user.role == "customer":
             queryset = queryset.filter(meter__customer=user)
 
-        elif user.role in ["technician", "support"]:
-            pass
-
         else:
-            return queryset.none()
+            queryset = queryset.all()
 
-        # Filter by meter ID.
         meter_id = self.request.query_params.get("meter")
-
-        if meter_id:
-            if not meter_id.isdigit():
-                raise ValidationError({
-                    "meter": "Meter must be a valid numeric ID."
-                })
-
+        if meter_id and meter_id.isdigit():
             queryset = queryset.filter(meter_id=meter_id)
 
-        # Filter by reading source.
         source = self.request.query_params.get("source")
-
-        if source:
-            if source not in MeterReading.ReadingSource.values:
-                raise ValidationError({
-                    "source": "Invalid reading source."
-                })
-
+        if source in MeterReading.ReadingSource.values:
             queryset = queryset.filter(source=source)
 
-        # Filter by reading status.
         reading_status = self.request.query_params.get("status")
-
-        if reading_status:
-            if reading_status not in MeterReading.ReadingStatus.values:
-                raise ValidationError({
-                    "status": "Invalid reading status."
-                })
-
+        if reading_status in MeterReading.ReadingStatus.values:
             queryset = queryset.filter(status=reading_status)
+
+        review_status = self.request.query_params.get("review_status")
+        if review_status in MeterReading.ReviewStatus.values:
+            queryset = queryset.filter(review_status=review_status)
 
         return queryset
 
@@ -136,7 +120,7 @@ class MeterReadingListCreateView(generics.ListCreateAPIView):
         if self.request.method == "POST":
             return [IsReadingSubmitter()]
 
-        return [permissions.IsAuthenticated()]
+        return [IsAuthenticated()]
 
     def perform_create(self, serializer):
         serializer.save(
@@ -147,7 +131,7 @@ class MeterReadingListCreateView(generics.ListCreateAPIView):
 
 class MeterReadingDetailView(generics.RetrieveAPIView):
     serializer_class = MeterReadingSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
@@ -156,15 +140,84 @@ class MeterReadingDetailView(generics.RetrieveAPIView):
             "meter",
             "meter__customer",
             "recorded_by",
+            "reviewed_by",
         )
 
         if user.is_superuser:
-            return queryset.all()
+            return queryset
 
         if user.role == "customer":
             return queryset.filter(meter__customer=user)
 
-        if user.role in ["technician", "support"]:
-            return queryset.all()
+        return queryset
 
-        return queryset.none()
+
+class ReadingReviewSerializer(serializers.Serializer):
+    review_notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+    )
+
+
+class ApproveMeterReadingView(APIView):
+    permission_classes = [IsMeterAdministrator]
+
+    def post(self, request, pk):
+        serializer = ReadingReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        get_object_or_404(MeterReading, pk=pk)
+
+        try:
+            reading = approve_meter_reading(
+                reading_id=pk,
+                reviewed_by=request.user,
+                review_notes=serializer.validated_data.get(
+                    "review_notes", ""
+                ),
+            )
+
+        except DjangoValidationError as exc:
+            if hasattr(exc, "message_dict"):
+                detail = exc.message_dict
+            else:
+                detail = exc.messages
+
+            raise serializers.ValidationError(detail)
+
+        return Response(
+            MeterReadingSerializer(reading).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class RejectMeterReadingView(APIView):
+    permission_classes = [IsMeterAdministrator]
+
+    def post(self, request, pk):
+        serializer = ReadingReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        get_object_or_404(MeterReading, pk=pk)
+
+        try:
+            reading = reject_meter_reading(
+                reading_id=pk,
+                reviewed_by=request.user,
+                review_notes=serializer.validated_data.get(
+                    "review_notes", ""
+                ),
+            )
+
+        except DjangoValidationError as exc:
+            if hasattr(exc, "message_dict"):
+                detail = exc.message_dict
+            else:
+                detail = exc.messages
+
+            raise serializers.ValidationError(detail)
+
+        return Response(
+            MeterReadingSerializer(reading).data,
+            status=status.HTTP_200_OK,
+        )

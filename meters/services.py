@@ -105,9 +105,6 @@ def is_abnormal_consumption(reading):
 def validate_reading_sequence(meter, reading_value, reading_date):
     """
     Validate a reading against the meter's existing reading history.
-
-    This validation is repeated inside the transaction to protect
-    against concurrent submissions.
     """
     if meter.status != Meter.Status.ACTIVE:
         raise DjangoValidationError({
@@ -177,19 +174,125 @@ def validate_reading_sequence(meter, reading_value, reading_date):
 
 def recalculate_reading_status(reading):
     """
-    Recalculate and persist the abnormal-consumption status
-    of a reading.
+    Recalculate automatic anomaly status without overwriting
+    an administrator's approval or rejection.
     """
     if is_abnormal_consumption(reading):
         new_status = MeterReading.ReadingStatus.FLAGGED
     else:
         new_status = MeterReading.ReadingStatus.NORMAL
 
+    update_fields = []
+
     if reading.status != new_status:
         reading.status = new_status
-        reading.save(update_fields=["status"])
+        update_fields.append("status")
+
+    if reading.review_status not in [
+        MeterReading.ReviewStatus.APPROVED,
+        MeterReading.ReviewStatus.REJECTED,
+    ]:
+        if new_status == MeterReading.ReadingStatus.FLAGGED:
+            new_review_status = MeterReading.ReviewStatus.PENDING
+        else:
+            new_review_status = MeterReading.ReviewStatus.NOT_REQUIRED
+
+        if reading.review_status != new_review_status:
+            reading.review_status = new_review_status
+            update_fields.append("review_status")
+
+    if update_fields:
+        reading.save(update_fields=update_fields)
 
     return reading
+
+
+def approve_meter_reading(reading_id, reviewed_by, review_notes=""):
+    """
+    Approve a flagged meter reading awaiting administrator review.
+    """
+    with transaction.atomic():
+        meter = Meter.objects.select_for_update().get(
+            pk=MeterReading.objects.only("meter_id").get(
+                pk=reading_id
+            ).meter_id
+        )
+
+        reading = MeterReading.objects.select_for_update().get(
+            pk=reading_id,
+            meter=meter,
+        )
+
+        if reading.status != MeterReading.ReadingStatus.FLAGGED:
+            raise DjangoValidationError(
+                "Only flagged readings can be approved."
+            )
+
+        if reading.review_status != MeterReading.ReviewStatus.PENDING:
+            raise DjangoValidationError(
+                "This reading is not awaiting review."
+            )
+
+        reading.review_status = MeterReading.ReviewStatus.APPROVED
+        reading.reviewed_by = reviewed_by
+        reading.reviewed_at = timezone.now()
+        reading.review_notes = review_notes
+
+        reading.save(update_fields=[
+            "review_status",
+            "reviewed_by",
+            "reviewed_at",
+            "review_notes",
+        ])
+
+        return reading
+
+
+def reject_meter_reading(reading_id, reviewed_by, review_notes):
+    """
+    Reject a flagged meter reading awaiting administrator review.
+    A rejection reason is mandatory.
+    """
+    if not review_notes or not review_notes.strip():
+        raise DjangoValidationError({
+            "review_notes": "A reason is required when rejecting a reading."
+        })
+
+    with transaction.atomic():
+        meter = Meter.objects.select_for_update().get(
+            pk=MeterReading.objects.only("meter_id").get(
+                pk=reading_id
+            ).meter_id
+        )
+
+        reading = MeterReading.objects.select_for_update().get(
+            pk=reading_id,
+            meter=meter,
+        )
+
+        if reading.status != MeterReading.ReadingStatus.FLAGGED:
+            raise DjangoValidationError(
+                "Only flagged readings can be rejected."
+            )
+
+        if reading.review_status != MeterReading.ReviewStatus.PENDING:
+            raise DjangoValidationError(
+                "This reading is not awaiting review."
+            )
+
+        reading.review_status = MeterReading.ReviewStatus.REJECTED
+        reading.reviewed_by = reviewed_by
+        reading.reviewed_at = timezone.now()
+        reading.review_notes = review_notes.strip()
+
+        reading.save(update_fields=[
+            "review_status",
+            "reviewed_by",
+            "reviewed_at",
+            "review_notes",
+        ])
+
+        return reading
 
 
 def create_meter_reading(validated_data):
@@ -218,10 +321,12 @@ def create_meter_reading(validated_data):
 
             reading = MeterReading(**data)
             reading.status = MeterReading.ReadingStatus.NORMAL
+            reading.review_status = (
+                MeterReading.ReviewStatus.NOT_REQUIRED
+            )
             reading.save()
 
-            # Inserting a historical reading changes its own
-            # consumption interval and the next reading's interval.
+            # Recalculate the new reading and the next reading.
             affected_readings = [reading]
 
             next_reading = get_next_reading(reading)

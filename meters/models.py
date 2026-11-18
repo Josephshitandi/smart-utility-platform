@@ -55,6 +55,12 @@ class MeterReading(models.Model):
         NORMAL = "normal", "Normal"
         FLAGGED = "flagged", "Flagged"
 
+    class ReviewStatus(models.TextChoices):
+        NOT_REQUIRED = "not_required", "Not Required"
+        PENDING = "pending", "Pending Review"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
     meter = models.ForeignKey(
         Meter,
         on_delete=models.PROTECT,
@@ -79,6 +85,27 @@ class MeterReading(models.Model):
         choices=ReadingStatus.choices,
         default=ReadingStatus.NORMAL,
     )
+
+    review_status = models.CharField(
+        max_length=20,
+        choices=ReviewStatus.choices,
+        default=ReviewStatus.NOT_REQUIRED,
+    )
+
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="reviewed_meter_readings",
+        null=True,
+        blank=True,
+    )
+
+    reviewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    review_notes = models.TextField(blank=True)
 
     recorded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -108,7 +135,6 @@ class MeterReading(models.Model):
     def __str__(self):
         return f"{self.meter.meter_number} - {self.reading_value}"
 
-
     def calculate_consumption(self):
         previous_reading = (
             MeterReading.objects.filter(
@@ -130,11 +156,6 @@ class MeterReading(models.Model):
         if consumption is None:
             return False
 
-        # Initial demonstration threshold.
-        # We'll replace this with configurable rules later.
         threshold = 50
 
         return consumption > threshold
-
-
-

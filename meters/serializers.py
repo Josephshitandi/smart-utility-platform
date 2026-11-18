@@ -42,6 +42,16 @@ class MeterReadingSerializer(serializers.ModelSerializer):
 
     status = serializers.CharField(read_only=True)
 
+    review_status = serializers.CharField(read_only=True)
+
+    reviewed_by = serializers.PrimaryKeyRelatedField(
+        read_only=True
+    )
+
+    reviewed_at = serializers.DateTimeField(read_only=True)
+
+    review_notes = serializers.CharField(read_only=True)
+
     recorded_by = serializers.PrimaryKeyRelatedField(
         read_only=True
     )
@@ -56,6 +66,10 @@ class MeterReadingSerializer(serializers.ModelSerializer):
             "reading_date",
             "source",
             "status",
+            "review_status",
+            "reviewed_by",
+            "reviewed_at",
+            "review_notes",
             "recorded_by",
             "notes",
             "created_at",
@@ -65,6 +79,10 @@ class MeterReadingSerializer(serializers.ModelSerializer):
             "meter_number",
             "source",
             "status",
+            "review_status",
+            "reviewed_by",
+            "reviewed_at",
+            "review_notes",
             "recorded_by",
             "created_at",
         ]
