@@ -6,6 +6,7 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import BillGeneration from './pages/BillGeneration'
 import BillDetails from './pages/BillDetails'
+import PaymentHistory from './pages/PaymentHistory'
 
 function App() {
   return (
@@ -21,6 +22,8 @@ function App() {
       <Route path="/bills/generate" element={<BillGeneration />} />
 
       <Route path="/bills/:id" element={<BillDetails />} />
+
+      <Route path="/payments" element={<PaymentHistory />} />
 
       <Route
         path="*"
