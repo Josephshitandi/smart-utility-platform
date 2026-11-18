@@ -276,44 +276,107 @@ function Dashboard() {
   return (
     <div className="min-vh-100 bg-light">
 
-      {/* Navigation */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
-        <div className="container-fluid px-4">
+      
+{/* Navigation */}
+<nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div className="container-fluid px-4">
 
-          <span className="navbar-brand fw-bold">
-            <i className="bi bi-lightning-charge-fill me-2"></i>
-            Smart Utility
-          </span>
+    <span
+      className="navbar-brand fw-bold"
+      role="button"
+      onClick={() => navigate('/dashboard')}
+    >
+      <i className="bi bi-lightning-charge-fill me-2"></i>
+      Smart Utility
+    </span>
 
-          <div className="d-flex align-items-center gap-3">
+    <button
+      className="navbar-toggler"
+      type="button"
+      data-bs-toggle="collapse"
+      data-bs-target="#mainNavbar"
+      aria-controls="mainNavbar"
+      aria-expanded="false"
+      aria-label="Toggle navigation"
+    >
+      <span className="navbar-toggler-icon"></span>
+    </button>
 
-            {/* Administrator-only bill generation */}
-            {profile?.is_superuser && (
-              <button
-                className="btn btn-outline-light btn-sm"
-                onClick={() => navigate('/bills/generate')}
-              >
-                <i className="bi bi-receipt me-1"></i>
-                Generate Bill
-              </button>
-            )}
+    <div
+      className="collapse navbar-collapse"
+      id="mainNavbar"
+    >
+      <ul className="navbar-nav me-auto ms-lg-4 gap-lg-2">
 
-            <span className="text-white">
-              <i className="bi bi-person-circle me-2"></i>
-              {profile?.username}
-            </span>
+        <li className="nav-item">
+          <button
+            className="nav-link text-white border-0 bg-transparent"
+            onClick={() => navigate('/dashboard')}
+          >
+            <i className="bi bi-speedometer2 me-1"></i>
+            Dashboard
+          </button>
+        </li>
 
+        <li className="nav-item">
+          <button
+            className="nav-link text-white border-0 bg-transparent"
+            onClick={() => {
+              document.getElementById('bill-history')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              })
+            }}
+          >
+            <i className="bi bi-receipt me-1"></i>
+            My Bills
+          </button>
+        </li>
+
+        <li className="nav-item">
+          <button
+            className="nav-link text-white border-0 bg-transparent"
+            onClick={() => navigate('/payments')}
+          >
+            <i className="bi bi-credit-card me-1"></i>
+            Payment History
+          </button>
+        </li>
+
+        {profile?.is_superuser && (
+          <li className="nav-item">
             <button
-              className="btn btn-outline-light btn-sm"
-              onClick={handleLogout}
+              className="nav-link text-white border-0 bg-transparent"
+              onClick={() => navigate('/bills/generate')}
             >
-              <i className="bi bi-box-arrow-right me-1"></i>
-              Logout
+              <i className="bi bi-plus-circle me-1"></i>
+              Generate Bill
             </button>
+          </li>
+        )}
 
-          </div>
-        </div>
-      </nav>
+      </ul>
+
+      <div className="d-flex align-items-center gap-3 mt-3 mt-lg-0">
+
+        <span className="text-white">
+          <i className="bi bi-person-circle me-2"></i>
+          {profile?.username}
+        </span>
+
+        <button
+          className="btn btn-outline-light btn-sm"
+          onClick={handleLogout}
+        >
+          <i className="bi bi-box-arrow-right me-1"></i>
+          Logout
+        </button>
+
+      </div>
+    </div>
+  </div>
+</nav>
+
 
       <div className="container-fluid px-4 py-4">
 
@@ -586,7 +649,7 @@ function Dashboard() {
         </div>
 
         {/* Bill History */}
-        <div className="card border-0 shadow-sm mt-4">
+        <div className="card shadow-sm" id="bill-history">
           <div className="card-body p-4">
 
             <div className="d-flex justify-content-between align-items-center mb-3">
