@@ -268,3 +268,68 @@ def initiate_stk_push(
         "response_description": data.get("ResponseDescription", ""),
         "customer_message": data.get("CustomerMessage", ""),
     }
+
+def query_stk_push(checkout_request_id):
+    """
+    Query Safaricom for the status of an STK Push transaction.
+
+    A successful query response does not itself mean the
+    customer paid. Inspect ResultCode before processing payment.
+    """
+
+    if not checkout_request_id:
+        raise DarajaError("CheckoutRequestID is required.")
+
+    shortcode = settings.MPESA_SHORTCODE
+
+    if not shortcode:
+        raise DarajaError("Daraja Shortcode is missing.")
+
+    password, timestamp = generate_stk_password()
+    access_token = get_access_token()
+
+    url = (
+        f"{settings.MPESA_BASE_URL}"
+        "/mpesa/stkpushquery/v1/query"
+    )
+
+    payload = {
+        "BusinessShortCode": shortcode,
+        "Password": password,
+        "Timestamp": timestamp,
+        "CheckoutRequestID": checkout_request_id,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+    try:
+        response = requests.post(
+            url,
+            json=payload,
+            headers=headers,
+            timeout=settings.MPESA_API_TIMEOUT,
+        )
+
+        response.raise_for_status()
+        data = response.json()
+
+    except requests.Timeout as exc:
+        raise DarajaError(
+            "Daraja STK Query request timed out."
+        ) from exc
+
+    except requests.RequestException as exc:
+        raise DarajaError(
+            "Unable to communicate with Daraja STK Query service."
+        ) from exc
+
+    except ValueError as exc:
+        raise DarajaError(
+            "Daraja returned an invalid STK Query response."
+        ) from exc
+
+    return data
