@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction, models
@@ -423,14 +423,14 @@ def reconcile_payments():
     }
 
 
-    def initiate_daraja_payment(
-        *,
-        bill_id,
-        customer,
-        amount,
-        phone_number,
-        idempotency_key,
-    ):
+def initiate_daraja_payment(
+    *,
+    bill_id,
+    customer,
+    amount,
+    phone_number,
+    idempotency_key,
+):
         """
         Create a pending Daraja payment and initiate an M-Pesa STK Push.
 
@@ -565,3 +565,150 @@ def reconcile_payments():
         )
 
         return payment
+
+def process_verified_daraja_payment(
+    *,
+    checkout_request_id,
+    provider_reference,
+    amount,
+    phone_number,
+    result_code="0",
+    result_description="Payment completed successfully.",
+):
+    """
+    Finalize a Daraja payment after STK Query confirms success.
+
+    This function:
+    - Matches the Safaricom CheckoutRequestID.
+    - Validates the receipt, amount and phone number.
+    - Prevents duplicate payment processing.
+    - Creates exactly one ledger credit.
+    - Marks the bill paid when its balance is fully settled.
+    """
+
+    if not checkout_request_id:
+        raise ValidationError("CheckoutRequestID is required.")
+
+    if not provider_reference:
+        raise ValidationError("M-Pesa receipt number is required.")
+
+    if str(result_code) != "0":
+        raise ValidationError(
+            "Cannot finalize a payment that Daraja has not confirmed."
+        )
+
+    try:
+        amount = Decimal(str(amount))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValidationError("Invalid callback payment amount.") from exc
+
+    if not amount.is_finite() or amount <= ZERO:
+        raise ValidationError("Invalid callback payment amount.")
+
+    try:
+        phone_number = normalize_mpesa_phone(phone_number)
+    except DarajaError as exc:
+        raise ValidationError(str(exc)) from exc
+
+    with transaction.atomic():
+        try:
+            payment = Payment.objects.select_for_update().get(
+                checkout_request_id=checkout_request_id,
+                provider="daraja",
+            )
+        except Payment.DoesNotExist:
+            raise ValidationError(
+                "No matching Daraja payment was found."
+            )
+
+        # Validate callback details against our original request.
+        if payment.amount != amount:
+            raise ValidationError(
+                "Callback amount does not match the initiated payment."
+            )
+
+        if payment.phone_number != phone_number:
+            raise ValidationError(
+                "Callback phone number does not match the initiated payment."
+            )
+
+        # Safely handle repeated callbacks.
+        if payment.status == Payment.Status.SUCCESSFUL:
+            if payment.provider_reference == provider_reference:
+                return payment
+
+            raise ValidationError(
+                "This payment was already completed with a different receipt."
+            )
+
+        if payment.status != Payment.Status.PENDING:
+            raise ValidationError(
+                "This payment has already been processed."
+            )
+
+        if Payment.objects.filter(
+            provider_reference=provider_reference
+        ).exclude(pk=payment.pk).exists():
+            raise ValidationError(
+                "This M-Pesa receipt has already been used."
+            )
+
+        bill = Bill.objects.select_for_update().get(
+            pk=payment.bill_id
+        )
+
+        if bill.status != Bill.Status.PENDING:
+            raise ValidationError(
+                "This bill is no longer available for payment."
+            )
+
+        successful_payments = Payment.objects.filter(
+            bill=bill,
+            status=Payment.Status.SUCCESSFUL,
+        ).exclude(
+            pk=payment.pk
+        ).aggregate(
+            total=models.Sum("amount")
+        )["total"] or ZERO
+
+        if successful_payments + payment.amount > bill.amount:
+            raise ValidationError(
+                "Successful payment would exceed the bill amount."
+            )
+
+        payment.status = Payment.Status.SUCCESSFUL
+        payment.provider_reference = provider_reference
+        payment.result_code = str(result_code)
+        payment.result_description = result_description
+        payment.processed_at = timezone.now()
+
+        payment.save(
+            update_fields=[
+                "status",
+                "provider_reference",
+                "result_code",
+                "result_description",
+                "processed_at",
+                "updated_at",
+            ]
+        )
+
+        LedgerEntry.objects.create(
+            payment=payment,
+            bill=bill,
+            customer=payment.customer,
+            entry_type=LedgerEntry.EntryType.PAYMENT_CREDIT,
+            amount=payment.amount,
+            description=f"M-Pesa payment received for bill #{bill.pk}",
+        )
+
+        total_paid = successful_payments + payment.amount
+
+        if total_paid >= bill.amount:
+            bill.status = Bill.Status.PAID
+            bill.save(
+                update_fields=["status", "updated_at"]
+            )
+
+        return payment
+

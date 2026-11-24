@@ -9,6 +9,7 @@ from accounts.permissions import IsAdministrator
 from .models import Payment, LedgerEntry
 from .serializers import (
     PaymentInitiationSerializer,
+    DarajaPaymentInitiationSerializer,
     PaymentSerializer,
     PaymentCallbackSerializer,
     LedgerEntrySerializer,
@@ -221,4 +222,31 @@ class PaymentReconciliationView(generics.GenericAPIView):
         return Response(
             report,
             status=status.HTTP_200_OK,
+        )
+
+
+# --------------------------------------------------
+# DARAJA M-PESA STK PUSH INITIATION
+# --------------------------------------------------
+
+class DarajaPaymentInitiationView(generics.GenericAPIView):
+    """
+    Initiate a real Safaricom Daraja M-Pesa STK Push.
+
+    Authenticated customers can initiate payments
+    for their own pending bills.
+    """
+
+    serializer_class = DarajaPaymentInitiationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        payment = serializer.save()
+
+        return Response(
+            PaymentSerializer(payment).data,
+            status=status.HTTP_201_CREATED,
         )

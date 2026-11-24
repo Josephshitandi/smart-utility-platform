@@ -6,6 +6,7 @@ from .views import (
     PaymentCallbackView,
     LedgerEntryListView,
     PaymentReconciliationView,
+    DarajaPaymentInitiationView,
 )
 
 urlpatterns = [
@@ -23,6 +24,11 @@ urlpatterns = [
         "callback/",
         PaymentCallbackView.as_view(),
         name="payment-callback",
+    ),
+    path(
+        "daraja/initiate/",
+        DarajaPaymentInitiationView.as_view(),
+        name="daraja-payment-initiate",
     ),
     path(
         "ledger/",
