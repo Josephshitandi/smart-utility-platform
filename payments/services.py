@@ -7,6 +7,12 @@ from django.utils import timezone
 from billing.models import Bill
 from .models import Payment, LedgerEntry
 
+from .daraja import (
+    DarajaError,
+    initiate_stk_push,
+    normalize_mpesa_phone,
+)
+
 
 ZERO = Decimal("0.00")
 
@@ -415,3 +421,147 @@ def reconcile_payments():
         ),
         "results": results,
     }
+
+
+    def initiate_daraja_payment(
+        *,
+        bill_id,
+        customer,
+        amount,
+        phone_number,
+        idempotency_key,
+    ):
+        """
+        Create a pending Daraja payment and initiate an M-Pesa STK Push.
+
+        The payment remains pending until its callback and transaction
+        verification have been completed.
+        """
+
+        try:
+            amount = Decimal(str(amount))
+        except (InvalidOperation, TypeError, ValueError):
+            raise ValidationError("Invalid payment amount.")
+
+        if not amount.is_finite() or amount <= ZERO:
+            raise ValidationError(
+                "Payment amount must be greater than zero."
+            )
+
+        if amount != amount.to_integral_value():
+            raise ValidationError(
+                "M-Pesa payments must use whole Kenya shillings."
+            )
+
+        if not idempotency_key:
+            raise ValidationError(
+                "An idempotency key is required."
+            )
+
+        try:
+            phone_number = normalize_mpesa_phone(phone_number)
+        except DarajaError as exc:
+            raise ValidationError(str(exc)) from exc
+
+        # Create and reserve the payment inside a database transaction.
+        with transaction.atomic():
+            try:
+                bill = Bill.objects.select_for_update().get(
+                    pk=bill_id
+                )
+            except Bill.DoesNotExist:
+                raise ValidationError(
+                    "The specified bill does not exist."
+                )
+
+            if bill.meter.customer_id != customer.pk:
+                raise ValidationError(
+                    "You cannot pay another customer's bill."
+                )
+
+            if bill.status != Bill.Status.PENDING:
+                raise ValidationError(
+                    "Only pending bills can receive payments."
+                )
+
+            existing_payment = Payment.objects.filter(
+                idempotency_key=idempotency_key
+            ).first()
+
+            if existing_payment:
+                if (
+                    existing_payment.customer_id != customer.pk
+                    or existing_payment.bill_id != bill.pk
+                    or existing_payment.amount != amount
+                    or existing_payment.provider != "daraja"
+                    or existing_payment.phone_number != phone_number
+                ):
+                    raise ValidationError(
+                        "This idempotency key has already been used "
+                        "for a different payment request."
+                    )
+
+                if existing_payment.checkout_request_id:
+                    return existing_payment
+
+                raise ValidationError(
+                    "This payment request is already being processed. "
+                    "Please check its status before retrying."
+                )
+
+            outstanding = get_bill_outstanding_amount(bill)
+
+            pending_payments = Payment.objects.filter(
+                bill=bill,
+                status=Payment.Status.PENDING,
+            ).aggregate(
+                total=models.Sum("amount")
+            )["total"] or ZERO
+
+            available_amount = outstanding - pending_payments
+
+            if amount > available_amount:
+                raise ValidationError(
+                    "Payment amount exceeds the available bill balance."
+                )
+
+            try:
+                payment = Payment.objects.create(
+                    bill=bill,
+                    customer=customer,
+                    amount=amount,
+                    payment_method=Payment.PaymentMethod.MOBILE_MONEY,
+                    provider="daraja",
+                    phone_number=phone_number,
+                    idempotency_key=idempotency_key,
+                    status=Payment.Status.PENDING,
+                )
+            except IntegrityError as exc:
+                raise ValidationError(
+                    "A payment with this idempotency key already exists."
+                ) from exc
+
+        # Call Safaricom outside the database transaction.
+        # A timeout leaves the payment pending because Safaricom
+        # may have received the request even if we did not receive
+        # its response.
+        response = initiate_stk_push(
+            phone_number=phone_number,
+            amount=amount,
+            account_reference=f"BILL{bill.pk}",
+            transaction_description="Utility payment",
+        )
+
+        # Store the identifiers returned by Safaricom.
+        payment.merchant_request_id = response["merchant_request_id"]
+        payment.checkout_request_id = response["checkout_request_id"]
+
+        payment.save(
+            update_fields=[
+                "merchant_request_id",
+                "checkout_request_id",
+                "updated_at",
+            ]
+        )
+
+        return payment
