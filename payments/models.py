@@ -49,6 +49,36 @@ class Payment(models.Model):
         default="demo",
     )
 
+    # Customer's M-Pesa phone number.
+    phone_number = models.CharField(
+        max_length=15,
+        blank=True,
+    )
+
+    # Safaricom Daraja transaction identifiers.
+    merchant_request_id = models.CharField(
+        max_length=100,
+        blank=True,
+    )
+
+    checkout_request_id = models.CharField(
+        max_length=100,
+        unique=True,
+        null=True,
+        blank=True,
+    )
+
+    # Safaricom transaction result information.
+    result_code = models.CharField(
+        max_length=20,
+        blank=True,
+    )
+
+    result_description = models.TextField(
+        blank=True,
+    )
+
+    # Actual provider receipt/reference, e.g. M-Pesa receipt number.
     provider_reference = models.CharField(
         max_length=100,
         unique=True,

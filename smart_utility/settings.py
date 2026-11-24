@@ -114,6 +114,29 @@ DATABASES = {
     }
 }
 
+# --------------------------------------------------
+# SAFARICOM DARAJA M-PESA
+# --------------------------------------------------
+
+MPESA_ENVIRONMENT = os.getenv("MPESA_ENVIRONMENT", "sandbox").lower()
+
+if MPESA_ENVIRONMENT == "production":
+    MPESA_BASE_URL = "https://api.safaricom.co.ke"
+else:
+    MPESA_BASE_URL = "https://sandbox.safaricom.co.ke"
+
+MPESA_CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "")
+MPESA_CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "")
+MPESA_SHORTCODE = os.getenv("MPESA_SHORTCODE", "")
+MPESA_PASSKEY = os.getenv("MPESA_PASSKEY", "")
+MPESA_TRANSACTION_TYPE = os.getenv(
+    "MPESA_TRANSACTION_TYPE",
+    "CustomerPayBillOnline",
+)
+MPESA_CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "")
+
+MPESA_API_TIMEOUT = 30
+
 
 # --------------------------------------------------
 # PASSWORD VALIDATION
