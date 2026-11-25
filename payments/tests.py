@@ -674,4 +674,65 @@ class PaymentServiceTests(TestCase):
 
         mock_query.assert_called_once_with(payment.checkout_request_id)
 
+    @patch("payments.views.query_stk_push")
+    def test_duplicate_daraja_callback_does_not_duplicate_ledger(
+        self,
+        mock_query,
+    ):
+        payment = self.create_daraja_payment()
 
+        mock_query.return_value = {
+            "ResponseCode": "0",
+            "ResultCode": "0",
+            "ResultDesc": "The service request is processed successfully",
+        }
+
+        client = APIClient()
+
+        callback_data = {
+            "Body": {
+                "stkCallback": {
+                    "MerchantRequestID": payment.merchant_request_id,
+                    "CheckoutRequestID": payment.checkout_request_id,
+                    "ResultCode": 0,
+                    "ResultDesc": "Success",
+                    "CallbackMetadata": {
+                        "Item": [
+                            {"Name": "Amount", "Value": 100},
+                            {
+                                "Name": "MpesaReceiptNumber",
+                                "Value": "TEST-MPESA-RECEIPT-002",
+                            },
+                            {
+                                "Name": "PhoneNumber",
+                                "Value": 254712345678,
+                            },
+                        ]
+                    },
+                }
+            }
+        }
+
+        first_response = client.post(
+            "/api/v1/payments/daraja/callback/",
+            callback_data,
+            format="json",
+        )
+
+        second_response = client.post(
+            "/api/v1/payments/daraja/callback/",
+            callback_data,
+            format="json",
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+
+        payment.refresh_from_db()
+
+        self.assertEqual(payment.status, Payment.Status.SUCCESSFUL)
+        self.assertEqual(
+            LedgerEntry.objects.filter(payment=payment).count(),
+            1,
+        )
+        self.assertEqual(mock_query.call_count, 2)
