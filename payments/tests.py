@@ -1,5 +1,7 @@
+
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
@@ -11,14 +13,15 @@ from accounts.models import User
 from meters.models import Meter, MeterReading
 from billing.models import Bill, Tariff
 from .models import Payment, LedgerEntry
-from unittest.mock import patch
 from .services import (
     initiate_payment,
     process_payment_callback,
     process_verified_daraja_payment,
+    process_verified_daraja_failure,
     reconcile_bill,
     reconcile_payments,
 )
+
 
 class PaymentServiceTests(TestCase):
 
@@ -100,10 +103,10 @@ class PaymentServiceTests(TestCase):
             created_by=self.admin,
         )
 
-
     # --------------------------------------------------
     # Helper methods
     # --------------------------------------------------
+
     def create_daraja_payment(self):
         return Payment.objects.create(
             bill=self.bill,
@@ -189,22 +192,6 @@ class PaymentServiceTests(TestCase):
             status=Bill.Status.PENDING,
             created_by=self.admin,
         )
-
-    
-    def create_daraja_payment(self):
-        return Payment.objects.create(
-            bill=self.bill,
-            customer=self.customer,
-            amount=Decimal("100.00"),
-            payment_method=Payment.PaymentMethod.MOBILE_MONEY,
-            provider="daraja",
-            phone_number="254712345678",
-            idempotency_key="DARAJA-CALLBACK-TEST-001",
-            checkout_request_id="ws_CO_TEST_001",
-            merchant_request_id="MR_CALLBACK_TEST_001",
-            status=Payment.Status.PENDING,
-        )
-
 
     # --------------------------------------------------
     # Payment initiation tests
@@ -456,7 +443,7 @@ class PaymentServiceTests(TestCase):
         self.assertEqual(result["reconciled_count"], 2)
         self.assertEqual(result["discrepancy_count"], 0)
 
-        # --------------------------------------------------
+    # --------------------------------------------------
     # Reconciliation API security tests
     # --------------------------------------------------
 
@@ -612,6 +599,10 @@ class PaymentServiceTests(TestCase):
 
         self.assertEqual(LedgerEntry.objects.count(), 0)
 
+    # --------------------------------------------------
+    # DARAJA CALLBACK API TESTS
+    # --------------------------------------------------
+
     @patch("payments.views.query_stk_push")
     def test_successful_daraja_callback_verifies_and_processes_payment(
         self,
@@ -674,12 +665,11 @@ class PaymentServiceTests(TestCase):
 
         mock_query.assert_called_once_with(payment.checkout_request_id)
 
-
     @patch("payments.views.query_stk_push")
     def test_duplicate_daraja_callback_api_does_not_duplicate_ledger(
-    self,
-    mock_query,
-):
+        self,
+        mock_query,
+    ):
         payment = self.create_daraja_payment()
 
         mock_query.return_value = {
@@ -739,11 +729,17 @@ class PaymentServiceTests(TestCase):
         self.assertEqual(mock_query.call_count, 2)
 
     @patch("payments.views.query_stk_push")
-    def test_failed_daraja_callback_does_not_create_ledger_entry(
+    def test_failed_daraja_callback_marks_payment_failed(
         self,
         mock_query,
     ):
         payment = self.create_daraja_payment()
+
+        mock_query.return_value = {
+            "ResponseCode": "0",
+            "ResultCode": "1032",
+            "ResultDesc": "Request cancelled by user",
+        }
 
         client = APIClient()
 
@@ -768,7 +764,46 @@ class PaymentServiceTests(TestCase):
 
         payment.refresh_from_db()
 
-        self.assertEqual(payment.status, Payment.Status.PENDING)
-        self.assertEqual(LedgerEntry.objects.filter(payment=payment).count(), 0)
+        self.assertEqual(payment.status, Payment.Status.FAILED)
+        self.assertEqual(payment.result_code, "1032")
+        self.assertEqual(
+            payment.result_description,
+            "Request cancelled by user",
+        )
+        self.assertIsNotNone(payment.processed_at)
 
-        mock_query.assert_not_called()
+        self.assertEqual(
+            LedgerEntry.objects.filter(payment=payment).count(),
+            0,
+        )
+
+        mock_query.assert_called_once_with(payment.checkout_request_id)
+
+    # --------------------------------------------------
+    # DARAJA FAILURE SERVICE TESTS
+    # --------------------------------------------------
+
+    def test_verified_daraja_failure_marks_payment_failed(self):
+        payment = self.create_daraja_payment()
+
+        processed = process_verified_daraja_failure(
+            checkout_request_id="ws_CO_TEST_001",
+            result_code="1032",
+            result_description="Request cancelled by user",
+        )
+
+        payment.refresh_from_db()
+
+        self.assertEqual(processed.pk, payment.pk)
+        self.assertEqual(payment.status, Payment.Status.FAILED)
+        self.assertEqual(payment.result_code, "1032")
+        self.assertEqual(
+            payment.result_description,
+            "Request cancelled by user",
+        )
+        self.assertIsNotNone(payment.processed_at)
+
+        self.assertEqual(
+            LedgerEntry.objects.filter(payment=payment).count(),
+            0,
+        )

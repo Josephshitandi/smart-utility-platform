@@ -15,13 +15,16 @@ from .serializers import (
     PaymentCallbackSerializer,
     LedgerEntrySerializer,
 )
-from .services import reconcile_payments
+from .services import (
+    reconcile_payments,
+    process_verified_daraja_payment,
+    process_verified_daraja_failure,
+)
 import logging
 
 from rest_framework.permissions import AllowAny
 
 from .daraja import DarajaError, query_stk_push
-from .services import process_verified_daraja_payment
 
 logger = logging.getLogger(__name__)
 
@@ -268,8 +271,8 @@ class DarajaCallbackView(generics.GenericAPIView):
     """
     Receive Daraja STK Push callbacks.
 
-    Payment finalization is only attempted after STK Query
-    confirms successful transaction status.
+    STK Query must verify the transaction result before
+    a payment is marked successful or failed.
     """
 
     permission_classes = [AllowAny]
@@ -286,14 +289,6 @@ class DarajaCallbackView(generics.GenericAPIView):
                 "CheckoutRequestID"
             )
 
-            callback_result_code = callback.get(
-                "ResultCode"
-            )
-
-            callback_result_description = callback.get(
-                "ResultDesc", ""
-            )
-
             if not checkout_request_id:
                 logger.warning(
                     "Daraja callback missing CheckoutRequestID."
@@ -303,10 +298,14 @@ class DarajaCallbackView(generics.GenericAPIView):
                     status=status.HTTP_200_OK,
                 )
 
-            # Only query transactions reported as successful.
-            if str(callback_result_code) != "0":
-                logger.info(
-                    "Daraja transaction unsuccessful: %s",
+            # Verify the transaction directly with Safaricom.
+            query_result = query_stk_push(
+                checkout_request_id
+            )
+
+            if str(query_result.get("ResponseCode")) != "0":
+                logger.warning(
+                    "Daraja STK Query was not accepted: %s",
                     checkout_request_id,
                 )
                 return Response(
@@ -314,6 +313,30 @@ class DarajaCallbackView(generics.GenericAPIView):
                     status=status.HTTP_200_OK,
                 )
 
+            query_result_code = query_result.get("ResultCode")
+
+            # Safaricom confirms the transaction failed.
+            if str(query_result_code) != "0":
+                payment = process_verified_daraja_failure(
+                    checkout_request_id=checkout_request_id,
+                    result_code=query_result_code,
+                    result_description=query_result.get(
+                        "ResultDesc",
+                        callback.get("ResultDesc", ""),
+                    ),
+                )
+
+                logger.info(
+                    "Daraja payment marked failed: payment_id=%s",
+                    payment.pk,
+                )
+
+                return Response(
+                    {"Result": "Accepted"},
+                    status=status.HTTP_200_OK,
+                )
+
+            # Successful transactions require callback metadata.
             metadata = (
                 callback.get("CallbackMetadata", {})
                 .get("Item", [])
@@ -343,40 +366,15 @@ class DarajaCallbackView(generics.GenericAPIView):
                     status=status.HTTP_200_OK,
                 )
 
-            # Verify the transaction directly with Safaricom.
-            query_result = query_stk_push(
-                checkout_request_id
-            )
-
-            if str(query_result.get("ResponseCode")) != "0":
-                logger.warning(
-                    "Daraja STK Query was not accepted: %s",
-                    checkout_request_id,
-                )
-                return Response(
-                    {"Result": "Accepted"},
-                    status=status.HTTP_200_OK,
-                )
-
-            if str(query_result.get("ResultCode")) != "0":
-                logger.info(
-                    "Daraja query did not confirm success: %s",
-                    checkout_request_id,
-                )
-                return Response(
-                    {"Result": "Accepted"},
-                    status=status.HTTP_200_OK,
-                )
-
             payment = process_verified_daraja_payment(
                 checkout_request_id=checkout_request_id,
                 provider_reference=str(receipt),
                 amount=callback_amount,
                 phone_number=str(callback_phone),
-                result_code=query_result.get("ResultCode"),
+                result_code=query_result_code,
                 result_description=query_result.get(
                     "ResultDesc",
-                    callback_result_description,
+                    callback.get("ResultDesc", ""),
                 ),
             )
 
@@ -395,7 +393,6 @@ class DarajaCallbackView(generics.GenericAPIView):
                 "Unexpected error while processing Daraja callback."
             )
 
-        # Acknowledge the callback to avoid endless retries.
         return Response(
             {"Result": "Accepted"},
             status=status.HTTP_200_OK,
