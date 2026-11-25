@@ -11,6 +11,7 @@ from accounts.models import User
 from meters.models import Meter, MeterReading
 from billing.models import Bill, Tariff
 from .models import Payment, LedgerEntry
+from unittest.mock import patch
 from .services import (
     initiate_payment,
     process_payment_callback,
@@ -98,6 +99,7 @@ class PaymentServiceTests(TestCase):
             status=Bill.Status.PENDING,
             created_by=self.admin,
         )
+
 
     # --------------------------------------------------
     # Helper methods
@@ -187,6 +189,22 @@ class PaymentServiceTests(TestCase):
             status=Bill.Status.PENDING,
             created_by=self.admin,
         )
+
+    
+    def create_daraja_payment(self):
+        return Payment.objects.create(
+            bill=self.bill,
+            customer=self.customer,
+            amount=Decimal("100.00"),
+            payment_method=Payment.PaymentMethod.MOBILE_MONEY,
+            provider="daraja",
+            phone_number="254712345678",
+            idempotency_key="DARAJA-CALLBACK-TEST-001",
+            checkout_request_id="ws_CO_TEST_001",
+            merchant_request_id="MR_CALLBACK_TEST_001",
+            status=Payment.Status.PENDING,
+        )
+
 
     # --------------------------------------------------
     # Payment initiation tests
@@ -593,5 +611,67 @@ class PaymentServiceTests(TestCase):
             )
 
         self.assertEqual(LedgerEntry.objects.count(), 0)
+
+    @patch("payments.views.query_stk_push")
+    def test_successful_daraja_callback_verifies_and_processes_payment(
+        self,
+        mock_query,
+    ):
+        payment = self.create_daraja_payment()
+
+        mock_query.return_value = {
+            "ResponseCode": "0",
+            "ResultCode": "0",
+            "ResultDesc": "The service request is processed successfully",
+        }
+
+        client = APIClient()
+
+        callback_data = {
+            "Body": {
+                "stkCallback": {
+                    "MerchantRequestID": payment.merchant_request_id,
+                    "CheckoutRequestID": payment.checkout_request_id,
+                    "ResultCode": 0,
+                    "ResultDesc": "The service request is processed successfully",
+                    "CallbackMetadata": {
+                        "Item": [
+                            {"Name": "Amount", "Value": 100},
+                            {
+                                "Name": "MpesaReceiptNumber",
+                                "Value": "TEST-MPESA-RECEIPT-001",
+                            },
+                            {
+                                "Name": "PhoneNumber",
+                                "Value": 254712345678,
+                            },
+                        ]
+                    },
+                }
+            }
+        }
+
+        response = client.post(
+            "/api/v1/payments/daraja/callback/",
+            callback_data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        payment.refresh_from_db()
+
+        self.assertEqual(payment.status, Payment.Status.SUCCESSFUL)
+        self.assertEqual(
+            payment.provider_reference,
+            "TEST-MPESA-RECEIPT-001",
+        )
+
+        self.assertEqual(
+            LedgerEntry.objects.filter(payment=payment).count(),
+            1,
+        )
+
+        mock_query.assert_called_once_with(payment.checkout_request_id)
 
 
