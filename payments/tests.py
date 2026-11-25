@@ -14,10 +14,10 @@ from .models import Payment, LedgerEntry
 from .services import (
     initiate_payment,
     process_payment_callback,
+    process_verified_daraja_payment,
     reconcile_bill,
     reconcile_payments,
 )
-
 
 class PaymentServiceTests(TestCase):
 
@@ -102,6 +102,19 @@ class PaymentServiceTests(TestCase):
     # --------------------------------------------------
     # Helper methods
     # --------------------------------------------------
+    def create_daraja_payment(self):
+        return Payment.objects.create(
+            bill=self.bill,
+            customer=self.customer,
+            amount=Decimal("100.00"),
+            payment_method=Payment.PaymentMethod.MOBILE_MONEY,
+            provider="daraja",
+            phone_number="254712345678",
+            idempotency_key="DARAJA-TEST-001",
+            checkout_request_id="ws_CO_TEST_001",
+            merchant_request_id="MR_TEST_001",
+            status=Payment.Status.PENDING,
+        )
 
     def create_payment(self, amount="100.00", key="PAYMENT-001"):
         return initiate_payment(
@@ -515,5 +528,70 @@ class PaymentServiceTests(TestCase):
 
         self.assertEqual(self.bill.status, bill_status_before)
         self.assertEqual(payment.status, payment_status_before)
+
+    # --------------------------------------------------
+    # DARAJA PAYMENT FINALIZATION TESTS
+    # --------------------------------------------------
+
+    def test_verified_daraja_payment_creates_ledger_entry(self):
+        payment = self.create_daraja_payment()
+
+        processed = process_verified_daraja_payment(
+            checkout_request_id="ws_CO_TEST_001",
+            provider_reference="MPESA-TEST-001",
+            amount=Decimal("100.00"),
+            phone_number="254712345678",
+        )
+
+        self.assertEqual(processed.pk, payment.pk)
+        self.assertEqual(processed.status, Payment.Status.SUCCESSFUL)
+        self.assertEqual(
+            processed.provider_reference,
+            "MPESA-TEST-001",
+        )
+        self.assertEqual(LedgerEntry.objects.count(), 1)
+
+        self.bill.refresh_from_db()
+        self.assertEqual(self.bill.status, Bill.Status.PAID)
+
+    def test_duplicate_daraja_callback_does_not_duplicate_ledger(self):
+        self.create_daraja_payment()
+
+        for _ in range(2):
+            process_verified_daraja_payment(
+                checkout_request_id="ws_CO_TEST_001",
+                provider_reference="MPESA-TEST-002",
+                amount=Decimal("100.00"),
+                phone_number="254712345678",
+            )
+
+        self.assertEqual(LedgerEntry.objects.count(), 1)
+        self.assertEqual(Payment.objects.count(), 1)
+
+    def test_daraja_payment_rejects_wrong_amount(self):
+        self.create_daraja_payment()
+
+        with self.assertRaises(ValidationError):
+            process_verified_daraja_payment(
+                checkout_request_id="ws_CO_TEST_001",
+                provider_reference="MPESA-TEST-003",
+                amount=Decimal("90.00"),
+                phone_number="254712345678",
+            )
+
+        self.assertEqual(LedgerEntry.objects.count(), 0)
+
+    def test_daraja_payment_rejects_wrong_phone_number(self):
+        self.create_daraja_payment()
+
+        with self.assertRaises(ValidationError):
+            process_verified_daraja_payment(
+                checkout_request_id="ws_CO_TEST_001",
+                provider_reference="MPESA-TEST-004",
+                amount=Decimal("100.00"),
+                phone_number="254722222222",
+            )
+
+        self.assertEqual(LedgerEntry.objects.count(), 0)
 
 
