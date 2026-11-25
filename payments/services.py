@@ -712,3 +712,56 @@ def process_verified_daraja_payment(
 
         return payment
 
+def process_verified_daraja_failure(
+    *,
+    checkout_request_id,
+    result_code,
+    result_description="",
+):
+    if not checkout_request_id:
+        raise ValidationError("Checkout request ID is required.")
+
+    if result_code is None or str(result_code) == "0":
+        raise ValidationError("A valid failure result code is required.")
+
+    with transaction.atomic():
+        try:
+            payment = Payment.objects.select_for_update().get(
+                checkout_request_id=checkout_request_id,
+                provider="daraja",
+            )
+        except Payment.DoesNotExist:
+            raise ValidationError(
+                "No matching Daraja payment was found."
+            )
+
+        if payment.status == Payment.Status.FAILED:
+            if payment.result_code == str(result_code):
+                return payment
+
+            raise ValidationError(
+                "Payment was already recorded with a different result."
+            )
+
+        if payment.status != Payment.Status.PENDING:
+            raise ValidationError(
+                "Only pending payments can be marked as failed."
+            )
+
+        payment.status = Payment.Status.FAILED
+        payment.result_code = str(result_code)
+        payment.result_description = str(result_description)
+        payment.processed_at = timezone.now()
+
+        payment.save(
+            update_fields=[
+                "status",
+                "result_code",
+                "result_description",
+                "processed_at",
+                "updated_at",
+            ]
+        )
+
+        return payment
+
