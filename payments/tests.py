@@ -674,11 +674,12 @@ class PaymentServiceTests(TestCase):
 
         mock_query.assert_called_once_with(payment.checkout_request_id)
 
+
     @patch("payments.views.query_stk_push")
-    def test_duplicate_daraja_callback_does_not_duplicate_ledger(
-        self,
-        mock_query,
-    ):
+    def test_duplicate_daraja_callback_api_does_not_duplicate_ledger(
+    self,
+    mock_query,
+):
         payment = self.create_daraja_payment()
 
         mock_query.return_value = {
@@ -736,3 +737,38 @@ class PaymentServiceTests(TestCase):
             1,
         )
         self.assertEqual(mock_query.call_count, 2)
+
+    @patch("payments.views.query_stk_push")
+    def test_failed_daraja_callback_does_not_create_ledger_entry(
+        self,
+        mock_query,
+    ):
+        payment = self.create_daraja_payment()
+
+        client = APIClient()
+
+        callback_data = {
+            "Body": {
+                "stkCallback": {
+                    "MerchantRequestID": payment.merchant_request_id,
+                    "CheckoutRequestID": payment.checkout_request_id,
+                    "ResultCode": 1032,
+                    "ResultDesc": "Request cancelled by user",
+                }
+            }
+        }
+
+        response = client.post(
+            "/api/v1/payments/daraja/callback/",
+            callback_data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        payment.refresh_from_db()
+
+        self.assertEqual(payment.status, Payment.Status.PENDING)
+        self.assertEqual(LedgerEntry.objects.filter(payment=payment).count(), 0)
+
+        mock_query.assert_not_called()
