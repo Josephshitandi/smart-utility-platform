@@ -1,7 +1,11 @@
-from rest_framework import generics, status, serializers
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
+
+import logging
+
 from django.core.exceptions import ValidationError
+
+from rest_framework import generics, serializers, status
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.response import Response
 
 from drf_spectacular.utils import extend_schema
 
@@ -20,14 +24,27 @@ from .services import (
     process_verified_daraja_payment,
     process_verified_daraja_failure,
 )
-import logging
-
-from rest_framework.permissions import AllowAny
-
 from .daraja import DarajaError, query_stk_push
+
 
 logger = logging.getLogger(__name__)
 
+
+# --------------------------------------------------
+# DARAJA CALLBACK SCHEMA SERIALIZERS
+# --------------------------------------------------
+
+class DarajaCallbackRequestSerializer(serializers.Serializer):
+    Body = serializers.DictField()
+
+
+class DarajaCallbackResponseSerializer(serializers.Serializer):
+    Result = serializers.CharField()
+
+
+# --------------------------------------------------
+# PAYMENT LIST AND INITIATION
+# --------------------------------------------------
 
 class PaymentListCreateView(generics.ListCreateAPIView):
     """
@@ -60,6 +77,10 @@ class PaymentListCreateView(generics.ListCreateAPIView):
         return PaymentSerializer
 
 
+# --------------------------------------------------
+# PAYMENT DETAIL
+# --------------------------------------------------
+
 class PaymentDetailView(generics.RetrieveAPIView):
     """
     Retrieve a payment while enforcing customer data isolation.
@@ -85,13 +106,15 @@ class PaymentDetailView(generics.RetrieveAPIView):
         return queryset.none()
 
 
+# --------------------------------------------------
+# DEMO PAYMENT CALLBACK
+# --------------------------------------------------
+
 class PaymentCallbackView(generics.GenericAPIView):
     """
     Simulated payment-provider callback.
 
     Restricted to administrators for demonstration purposes.
-    Real provider integration must use verified provider signatures
-    or another authenticated provider-to-server mechanism.
     """
 
     serializer_class = PaymentCallbackSerializer
@@ -108,6 +131,10 @@ class PaymentCallbackView(generics.GenericAPIView):
             status=status.HTTP_200_OK,
         )
 
+
+# --------------------------------------------------
+# FINANCIAL LEDGER
+# --------------------------------------------------
 
 class LedgerEntryListView(generics.ListAPIView):
     """
@@ -147,6 +174,7 @@ class LedgerEntryListView(generics.ListAPIView):
 
 class BillReconciliationSerializer(serializers.Serializer):
     bill_id = serializers.IntegerField()
+
     bill_amount = serializers.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -206,6 +234,10 @@ class PaymentReconciliationReportSerializer(serializers.Serializer):
     results = BillReconciliationSerializer(many=True)
 
 
+# --------------------------------------------------
+# PAYMENT RECONCILIATION
+# --------------------------------------------------
+
 class PaymentReconciliationView(generics.GenericAPIView):
     """
     Administrator-only financial reconciliation report.
@@ -263,21 +295,38 @@ class DarajaPaymentInitiationView(generics.GenericAPIView):
             status=status.HTTP_201_CREATED,
         )
 
+
 # --------------------------------------------------
 # SAFARICOM DARAJA CALLBACK
 # --------------------------------------------------
+
 
 class DarajaCallbackView(generics.GenericAPIView):
     """
     Receive Daraja STK Push callbacks.
 
-    STK Query must verify the transaction result before
-    a payment is marked successful or failed.
+    STK Query verifies transaction results before payment
+    records are finalized.
+
+    ResultCode 4999 means processing is still underway.
+    Such payments must remain pending.
     """
 
+    serializer_class = DarajaCallbackRequestSerializer
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(
+        request=DarajaCallbackRequestSerializer,
+        responses={
+            200: DarajaCallbackResponseSerializer,
+        },
+        description=(
+            "Public Safaricom Daraja STK Push callback endpoint. "
+            "Transaction results are verified through STK Query "
+            "before payment records are finalized."
+        ),
+    )
     def post(self, request, *args, **kwargs):
         try:
             callback = (
@@ -293,12 +342,13 @@ class DarajaCallbackView(generics.GenericAPIView):
                 logger.warning(
                     "Daraja callback missing CheckoutRequestID."
                 )
+
                 return Response(
                     {"Result": "Accepted"},
                     status=status.HTTP_200_OK,
                 )
 
-            # Verify the transaction directly with Safaricom.
+            # Verify transaction status directly with Safaricom.
             query_result = query_stk_push(
                 checkout_request_id
             )
@@ -308,15 +358,30 @@ class DarajaCallbackView(generics.GenericAPIView):
                     "Daraja STK Query was not accepted: %s",
                     checkout_request_id,
                 )
+
                 return Response(
                     {"Result": "Accepted"},
                     status=status.HTTP_200_OK,
                 )
 
-            query_result_code = query_result.get("ResultCode")
+            query_result_code = str(
+                query_result.get("ResultCode", "")
+            )
+
+            # Safaricom reports that the transaction is still processing.
+            if query_result_code == "4999":
+                logger.info(
+                    "Daraja payment still processing: checkout_request_id=%s",
+                    checkout_request_id,
+                )
+
+                return Response(
+                    {"Result": "Accepted"},
+                    status=status.HTTP_200_OK,
+                )
 
             # Safaricom confirms the transaction failed.
-            if str(query_result_code) != "0":
+            if query_result_code != "0":
                 payment = process_verified_daraja_failure(
                     checkout_request_id=checkout_request_id,
                     result_code=query_result_code,
@@ -348,7 +413,9 @@ class DarajaCallbackView(generics.GenericAPIView):
                 if isinstance(item, dict)
             }
 
-            receipt = metadata_values.get("MpesaReceiptNumber")
+            receipt = metadata_values.get(
+                "MpesaReceiptNumber"
+            )
             callback_amount = metadata_values.get("Amount")
             callback_phone = metadata_values.get("PhoneNumber")
 
@@ -361,6 +428,7 @@ class DarajaCallbackView(generics.GenericAPIView):
                     "Daraja callback metadata incomplete: %s",
                     checkout_request_id,
                 )
+
                 return Response(
                     {"Result": "Accepted"},
                     status=status.HTTP_200_OK,
@@ -383,7 +451,13 @@ class DarajaCallbackView(generics.GenericAPIView):
                 payment.pk,
             )
 
-        except (ValidationError, DarajaError, KeyError, TypeError, ValueError):
+        except (
+            ValidationError,
+            DarajaError,
+            KeyError,
+            TypeError,
+            ValueError,
+        ):
             logger.exception(
                 "Daraja callback processing failed."
             )

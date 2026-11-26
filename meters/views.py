@@ -5,7 +5,8 @@ from django.shortcuts import get_object_or_404
 from rest_framework import generics, serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView
+
+from drf_spectacular.utils import extend_schema
 
 from .models import Meter, MeterReading
 from .permissions import (
@@ -159,11 +160,17 @@ class ReadingReviewSerializer(serializers.Serializer):
     )
 
 
-class ApproveMeterReadingView(APIView):
+class ApproveMeterReadingView(generics.GenericAPIView):
+    serializer_class = ReadingReviewSerializer
     permission_classes = [IsMeterAdministrator]
 
+    @extend_schema(
+        request=ReadingReviewSerializer,
+        responses={200: MeterReadingSerializer},
+        description="Approve a meter reading after administrative review.",
+    )
     def post(self, request, pk):
-        serializer = ReadingReviewSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         get_object_or_404(MeterReading, pk=pk)
@@ -191,11 +198,17 @@ class ApproveMeterReadingView(APIView):
         )
 
 
-class RejectMeterReadingView(APIView):
+class RejectMeterReadingView(generics.GenericAPIView):
+    serializer_class = ReadingReviewSerializer
     permission_classes = [IsMeterAdministrator]
 
+    @extend_schema(
+        request=ReadingReviewSerializer,
+        responses={200: MeterReadingSerializer},
+        description="Reject a meter reading after administrative review.",
+    )
     def post(self, request, pk):
-        serializer = ReadingReviewSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         get_object_or_404(MeterReading, pk=pk)

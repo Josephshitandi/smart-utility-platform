@@ -650,6 +650,70 @@ paths:
               schema:
                 $ref: '#/components/schemas/MeterReading'
           description: ''
+  /api/v1/meters/readings/{id}/approve/:
+    post:
+      operationId: v1_meters_readings_approve_create
+      description: Approve a meter reading after administrative review.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReadingReviewRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReadingReviewRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReadingReviewRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterReading'
+          description: ''
+  /api/v1/meters/readings/{id}/reject/:
+    post:
+      operationId: v1_meters_readings_reject_create
+      description: Reject a meter reading after administrative review.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReadingReviewRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReadingReviewRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReadingReviewRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterReading'
+          description: ''
   /api/v1/payments/:
     get:
       operationId: v1_payments_list
@@ -742,8 +806,6 @@ paths:
         Simulated payment-provider callback.
 
         Restricted to administrators for demonstration purposes.
-        Real provider integration must use verified provider signatures
-        or another authenticated provider-to-server mechanism.
       tags:
       - v1
       requestBody:
@@ -766,6 +828,65 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentCallback'
+          description: ''
+  /api/v1/payments/daraja/callback/:
+    post:
+      operationId: v1_payments_daraja_callback_create
+      description: Public Safaricom Daraja STK Push callback endpoint. Transaction
+        results are verified through STK Query before payment records are finalized.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DarajaCallbackRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DarajaCallbackRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DarajaCallbackRequestRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DarajaCallbackResponse'
+          description: ''
+  /api/v1/payments/daraja/initiate/:
+    post:
+      operationId: v1_payments_daraja_initiate_create
+      description: |-
+        Initiate a real Safaricom Daraja M-Pesa STK Push.
+
+        Authenticated customers can initiate payments
+        for their own pending bills.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DarajaPaymentInitiationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DarajaPaymentInitiationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DarajaPaymentInitiationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DarajaPaymentInitiation'
           description: ''
   /api/v1/payments/ledger/:
     get:
@@ -1256,6 +1377,63 @@ components:
         * `meter` - Meter
         * `technical` - Technical
         * `general` - General
+    DarajaCallbackRequestRequest:
+      type: object
+      properties:
+        Body:
+          type: object
+          additionalProperties: {}
+      required:
+      - Body
+    DarajaCallbackResponse:
+      type: object
+      properties:
+        Result:
+          type: string
+      required:
+      - Result
+    DarajaPaymentInitiation:
+      type: object
+      properties:
+        bill_id:
+          type: integer
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        phone_number:
+          type: string
+          maxLength: 20
+        idempotency_key:
+          type: string
+          maxLength: 100
+      required:
+      - amount
+      - bill_id
+      - idempotency_key
+      - phone_number
+    DarajaPaymentInitiationRequest:
+      type: object
+      properties:
+        bill_id:
+          type: integer
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        phone_number:
+          type: string
+          minLength: 1
+          maxLength: 20
+        idempotency_key:
+          type: string
+          minLength: 1
+          maxLength: 100
+      required:
+      - amount
+      - bill_id
+      - idempotency_key
+      - phone_number
     EntryTypeEnum:
       enum:
       - payment_credit
@@ -1373,6 +1551,19 @@ components:
         status:
           type: string
           readOnly: true
+        review_status:
+          type: string
+          readOnly: true
+        reviewed_by:
+          type: integer
+          readOnly: true
+        reviewed_at:
+          type: string
+          format: date-time
+          readOnly: true
+        review_notes:
+          type: string
+          readOnly: true
         recorded_by:
           type: integer
           readOnly: true
@@ -1390,6 +1581,10 @@ components:
       - reading_date
       - reading_value
       - recorded_by
+      - review_notes
+      - review_status
+      - reviewed_at
+      - reviewed_by
       - source
       - status
     MeterReadingRequest:
@@ -1722,10 +1917,26 @@ components:
         provider:
           type: string
           readOnly: true
+        phone_number:
+          type: string
+          readOnly: true
         provider_reference:
           type: string
           readOnly: true
           nullable: true
+        merchant_request_id:
+          type: string
+          readOnly: true
+        checkout_request_id:
+          type: string
+          readOnly: true
+          nullable: true
+        result_code:
+          type: string
+          readOnly: true
+        result_description:
+          type: string
+          readOnly: true
         idempotency_key:
           type: string
           readOnly: true
@@ -1749,15 +1960,20 @@ components:
       required:
       - amount
       - bill_id
+      - checkout_request_id
       - customer
       - customer_email
       - id
       - idempotency_key
       - initiated_at
+      - merchant_request_id
       - payment_method
+      - phone_number
       - processed_at
       - provider
       - provider_reference
+      - result_code
+      - result_description
       - status
       - updated_at
     PaymentCallback:
@@ -1884,6 +2100,11 @@ components:
         * `normal` - Normal
         * `high` - High
         * `urgent` - Urgent
+    ReadingReviewRequest:
+      type: object
+      properties:
+        review_notes:
+          type: string
     RoleDashboardResponse:
       type: object
       properties:
@@ -2223,6 +2444,12 @@ components:
           allOf:
           - $ref: '#/components/schemas/RoleEnum'
           readOnly: true
+        is_superuser:
+          type: boolean
+          readOnly: true
+          title: Superuser status
+          description: Designates that this user has all permissions without explicitly
+            assigning them.
         created_at:
           type: string
           format: date-time
@@ -2235,6 +2462,7 @@ components:
       - created_at
       - email
       - id
+      - is_superuser
       - phone_number
       - role
       - updated_at
